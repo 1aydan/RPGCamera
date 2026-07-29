@@ -19,17 +19,17 @@ class UFadeableTarget : public UInterface
  * bRequireFadeableInterface is false, actors are faded whether or not they
  * implement it - the events simply won't fire.
  */
-class TOPDOWNRPGCAMERA_API IFadeableTarget
+class RPGCAMERA_API IFadeableTarget
 {
 	GENERATED_BODY()
 
 public:
 	/** Called once when this actor starts blocking the view. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Top Down Camera|Fade")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "RPG Camera|Fade")
 	void OnFadeOutBegin();
 
 	/** Called once when this actor stops blocking the view. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Top Down Camera|Fade")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "RPG Camera|Fade")
 	void OnFadeInBegin();
 
 	/**
@@ -37,13 +37,13 @@ public:
 	 * @param Primitive The component being faded.
 	 * @param Alpha     1 = fully opaque, 0 = fully faded.
 	 */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Top Down Camera|Fade")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "RPG Camera|Fade")
 	void OnFadeAlphaChanged(UPrimitiveComponent* Primitive, float Alpha);
 
 	/**
 	 * Return false to have the fade component skip this actor entirely.
 	 * Handy for actors that should never disappear, such as the ground.
 	 */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Top Down Camera|Fade")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "RPG Camera|Fade")
 	bool CanBeFaded();
 };

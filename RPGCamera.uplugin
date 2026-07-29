@@ -2,7 +2,7 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "1.0.0",
-	"FriendlyName": "Top Down RPG Camera",
+	"FriendlyName": "RPG Camera",
 	"Description": "Modular top-down / ARPG camera toolkit: flexible camera control, view-obstruction fading, and cursor hover tracking. C++ core, fully Blueprint exposed.",
 	"Category": "Camera",
 	"CreatedBy": "",
@@ -17,7 +17,7 @@
 	"Installed": false,
 	"Modules": [
 		{
-			"Name": "TopDownRPGCamera",
+			"Name": "RPGCamera",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}

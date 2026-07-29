@@ -8,7 +8,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "TopDownRPGCameraModule.h"
+#include "RPGCameraModule.h"
 
 UOcclusionFadeComponent::UOcclusionFadeComponent()
 {
@@ -87,7 +87,7 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 	const float SweepLength = FMath::Max(0.f, Distance - CameraPadding);
 	const FVector SweepEnd = TargetLocation + ToCamera * SweepLength;
 
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(TopDownOcclusionFade), bTraceComplex);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(RPGOcclusionFade), bTraceComplex);
 	Params.AddIgnoredActor(ViewTarget.Get());
 	if (GetOwner() != ViewTarget.Get())
 	{
@@ -105,7 +105,7 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 		Params);
 
 	// Mark everything as clear, then re-flag what the sweep found.
-	for (TPair<TObjectPtr<UPrimitiveComponent>, FTDFadeState>& Pair : FadeStates)
+	for (TPair<TObjectPtr<UPrimitiveComponent>, FRPGFadeState>& Pair : FadeStates)
 	{
 		Pair.Value.bOccluding = false;
 	}
@@ -120,7 +120,7 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 			continue;
 		}
 
-		FTDFadeState& State = FadeStates.FindOrAdd(Primitive);
+		FRPGFadeState& State = FadeStates.FindOrAdd(Primitive);
 		const bool bIsNew = !State.bCachedOriginals;
 
 		if (bIsNew)
@@ -247,10 +247,10 @@ void UOcclusionFadeComponent::UpdateFadeAlphas(float DeltaTime)
 
 	TArray<TObjectPtr<UPrimitiveComponent>> Finished;
 
-	for (TPair<TObjectPtr<UPrimitiveComponent>, FTDFadeState>& Pair : FadeStates)
+	for (TPair<TObjectPtr<UPrimitiveComponent>, FRPGFadeState>& Pair : FadeStates)
 	{
 		UPrimitiveComponent* Primitive = Pair.Key;
-		FTDFadeState& State = Pair.Value;
+		FRPGFadeState& State = Pair.Value;
 
 		if (!IsValid(Primitive))
 		{
@@ -290,7 +290,7 @@ void UOcclusionFadeComponent::UpdateFadeAlphas(float DeltaTime)
 	}
 }
 
-void UOcclusionFadeComponent::CacheOriginals(UPrimitiveComponent* Primitive, FTDFadeState& State)
+void UOcclusionFadeComponent::CacheOriginals(UPrimitiveComponent* Primitive, FRPGFadeState& State)
 {
 	if (!IsValid(Primitive) || State.bCachedOriginals)
 	{
@@ -302,7 +302,7 @@ void UOcclusionFadeComponent::CacheOriginals(UPrimitiveComponent* Primitive, FTD
 	State.Alpha = 1.f;
 	State.bCachedOriginals = true;
 
-	if (FadeMethod == ETDFadeMethod::MaterialParameter)
+	if (FadeMethod == ERPGFadeMethod::MaterialParameter)
 	{
 		const int32 NumMaterials = Primitive->GetNumMaterials();
 		State.DynamicMaterials.Reserve(NumMaterials);
@@ -317,7 +317,7 @@ void UOcclusionFadeComponent::CacheOriginals(UPrimitiveComponent* Primitive, FTD
 	}
 }
 
-void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FTDFadeState& State)
+void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FRPGFadeState& State)
 {
 	if (!IsValid(Primitive))
 	{
@@ -326,11 +326,11 @@ void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FTDFadeS
 
 	switch (FadeMethod)
 	{
-	case ETDFadeMethod::CustomPrimitiveData:
+	case ERPGFadeMethod::CustomPrimitiveData:
 		Primitive->SetCustomPrimitiveDataFloat(CustomPrimitiveDataIndex, State.Alpha);
 		break;
 
-	case ETDFadeMethod::MaterialParameter:
+	case ERPGFadeMethod::MaterialParameter:
 		for (UMaterialInstanceDynamic* MID : State.DynamicMaterials)
 		{
 			if (IsValid(MID))
@@ -340,7 +340,7 @@ void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FTDFadeS
 		}
 		break;
 
-	case ETDFadeMethod::HideComponent:
+	case ERPGFadeMethod::HideComponent:
 	{
 		// Binary rather than gradual: hide once we're past the midpoint.
 		const bool bShouldBeVisible = State.Alpha > 0.5f;
@@ -356,14 +356,14 @@ void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FTDFadeS
 		break;
 	}
 
-	case ETDFadeMethod::InterfaceOnly:
+	case ERPGFadeMethod::InterfaceOnly:
 	default:
 		// The interface event in UpdateFadeAlphas does all the work.
 		break;
 	}
 }
 
-void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, FTDFadeState& State)
+void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, FRPGFadeState& State)
 {
 	if (!IsValid(Primitive))
 	{
@@ -372,11 +372,11 @@ void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, F
 
 	switch (FadeMethod)
 	{
-	case ETDFadeMethod::CustomPrimitiveData:
+	case ERPGFadeMethod::CustomPrimitiveData:
 		Primitive->SetCustomPrimitiveDataFloat(CustomPrimitiveDataIndex, 1.f);
 		break;
 
-	case ETDFadeMethod::MaterialParameter:
+	case ERPGFadeMethod::MaterialParameter:
 		for (UMaterialInstanceDynamic* MID : State.DynamicMaterials)
 		{
 			if (IsValid(MID))
@@ -386,7 +386,7 @@ void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, F
 		}
 		break;
 
-	case ETDFadeMethod::HideComponent:
+	case ERPGFadeMethod::HideComponent:
 		Primitive->bCastHiddenShadow = State.bOriginalCastHiddenShadow;
 		Primitive->SetVisibility(State.bOriginalVisibility);
 		Primitive->MarkRenderStateDirty();
@@ -401,7 +401,7 @@ void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, F
 
 void UOcclusionFadeComponent::ClearAllFades()
 {
-	for (TPair<TObjectPtr<UPrimitiveComponent>, FTDFadeState>& Pair : FadeStates)
+	for (TPair<TObjectPtr<UPrimitiveComponent>, FRPGFadeState>& Pair : FadeStates)
 	{
 		if (IsValid(Pair.Key))
 		{
@@ -422,7 +422,7 @@ TArray<AActor*> UOcclusionFadeComponent::GetOccludingActors() const
 {
 	TArray<AActor*> Result;
 
-	for (const TPair<TObjectPtr<UPrimitiveComponent>, FTDFadeState>& Pair : FadeStates)
+	for (const TPair<TObjectPtr<UPrimitiveComponent>, FRPGFadeState>& Pair : FadeStates)
 	{
 		if (!Pair.Value.bOccluding || !IsValid(Pair.Key))
 		{

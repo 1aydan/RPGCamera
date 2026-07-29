@@ -1,11 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "TopDownRPGCameraTypes.generated.h"
+#include "RPGCameraTypes.generated.h"
 
 /** How the camera decides where to sit each frame. */
 UENUM(BlueprintType)
-enum class ETDCameraMode : uint8
+enum class ERPGCameraMode : uint8
 {
 	/** Camera tracks the follow target (usually the player character). */
 	FollowTarget	UMETA(DisplayName = "Follow Target"),
@@ -16,7 +16,7 @@ enum class ETDCameraMode : uint8
 
 /** How yaw rotation input is applied. */
 UENUM(BlueprintType)
-enum class ETDYawMode : uint8
+enum class ERPGYawMode : uint8
 {
 	/** Yaw is fixed at DefaultYaw and rotation input is ignored. */
 	Locked			UMETA(DisplayName = "Locked"),
@@ -30,7 +30,7 @@ enum class ETDYawMode : uint8
 
 /** Technique used to make an obstructing mesh see-through. */
 UENUM(BlueprintType)
-enum class ETDFadeMethod : uint8
+enum class ERPGFadeMethod : uint8
 {
 	/**
 	 * Writes the fade alpha into a Custom Primitive Data float slot.

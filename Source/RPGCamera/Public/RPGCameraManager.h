@@ -2,11 +2,11 @@
 
 #include "Camera/PlayerCameraManager.h"
 #include "CoreMinimal.h"
-#include "TopDownRPGCameraTypes.h"
-#include "TopDownCameraManager.generated.h"
+#include "RPGCameraTypes.h"
+#include "RPGCameraManager.generated.h"
 
 class UOcclusionFadeComponent;
-class UTopDownCameraComponent;
+class URPGCameraComponent;
 
 /**
  * Player camera manager that keeps track of the active top-down camera.
@@ -16,66 +16,66 @@ class UTopDownCameraComponent;
  * reference to the pawn. The passthrough functions below are safe to call even
  * when no camera is currently resolved.
  */
-UCLASS(Blueprintable, meta = (DisplayName = "Top Down Camera Manager"))
-class TOPDOWNRPGCAMERA_API ATopDownCameraManager : public APlayerCameraManager
+UCLASS(Blueprintable, meta = (DisplayName = "RPG Camera Manager"))
+class RPGCAMERA_API ARPGCameraManager : public APlayerCameraManager
 {
 	GENERATED_BODY()
 
 public:
-	ATopDownCameraManager();
+	ARPGCameraManager();
 
 	virtual void UpdateCamera(float DeltaTime) override;
 
 	/** The camera component on the current view target, if it has one. */
-	UFUNCTION(BlueprintPure, Category = "Top Down Camera Manager")
-	UTopDownCameraComponent* GetTopDownCamera() const;
+	UFUNCTION(BlueprintPure, Category = "RPG Camera Manager")
+	URPGCameraComponent* GetRPGCamera() const;
 
 	/** The fade component on the current view target, if it has one. */
-	UFUNCTION(BlueprintPure, Category = "Top Down Camera Manager")
+	UFUNCTION(BlueprintPure, Category = "RPG Camera Manager")
 	UOcclusionFadeComponent* GetOcclusionFade() const;
 
 	/** Force a re-lookup, e.g. right after possessing a new pawn. */
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager")
 	void RefreshCameraReferences();
 
 	// ---------------------------------------------------------------------
 	// Passthroughs
 	// ---------------------------------------------------------------------
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Zoom")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Zoom")
 	void AddZoomInput(float ZoomDelta);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Zoom")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Zoom")
 	void SetZoomLevel(int32 Level, bool bImmediate = false);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Rotation")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Rotation")
 	void AddYawInput(float AxisValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Rotation")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Rotation")
 	void AddYawSteps(int32 Steps);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Rotation")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Rotation")
 	void RecenterYaw(bool bImmediate = false);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Movement")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Movement")
 	void AddPanInput(FVector2D PanInput);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Movement")
-	void SetCameraMode(ETDCameraMode NewMode);
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Movement")
+	void SetCameraMode(ERPGCameraMode NewMode);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Movement")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Movement")
 	void SetFollowTarget(AActor* NewTarget, bool bSnapImmediately = false);
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Movement")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Movement")
 	void SnapToTarget();
 
-	UFUNCTION(BlueprintCallable, Category = "Top Down Camera Manager|Fade")
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera Manager|Fade")
 	void SetFadeEnabled(bool bEnabled);
 
 protected:
 	/** Cached components from the current view target. */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<UTopDownCameraComponent> CachedCamera;
+	TWeakObjectPtr<URPGCameraComponent> CachedCamera;
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UOcclusionFadeComponent> CachedFade;

@@ -1,0 +1,20 @@
+# Unreal Engine build artifacts
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+
+# Generated project files
+.vs/
+.vscode/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# OS cruft
+Thumbs.db
+.DS_Store

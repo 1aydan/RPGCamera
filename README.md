@@ -1,4 +1,4 @@
-# Top Down RPG Camera
+# RPG Camera
 
 A modular top-down / ARPG camera toolkit for **Unreal Engine 5.8**. Core logic is C++, but
 everything is exposed to Blueprints — you never have to write C++ to use it.
@@ -7,15 +7,15 @@ Three classes, all independent of each other:
 
 | Class | Type | Purpose |
 |---|---|---|
-| `UTopDownCameraComponent` | `USpringArmComponent` | Camera control: follow, pan, rotate, zoom, pitch, FOV |
-| `ATopDownCameraManager` | `APlayerCameraManager` | Single Blueprint entry point to the active camera |
+| `URPGCameraComponent` | `USpringArmComponent` | Camera control: follow, pan, rotate, zoom, pitch, FOV |
+| `ARPGCameraManager` | `APlayerCameraManager` | Single Blueprint entry point to the active camera |
 | `UOcclusionFadeComponent` | `UActorComponent` | Fades meshes that block the view of your character |
 
 ---
 
 ## Installation
 
-1. Copy the `TopDownRPGCamera` folder into `YourProject/Plugins/`.
+1. Copy the `RPGCamera` folder into `YourProject/Plugins/`.
 2. Right-click your `.uproject` → **Generate Visual Studio project files**.
 3. Build, then launch. Enable the plugin in **Edit → Plugins → Camera** if it isn't already.
 
@@ -27,7 +27,7 @@ The plugin requires the **Enhanced Input** plugin, which ships enabled by defaul
 
 On your character Blueprint:
 
-1. Add a **Top Down Camera** component to the root.
+1. Add a **RPG Camera** component to the root.
 2. Add a **Camera** component as a child of it.
 
 That's it — the arm finds the camera automatically and takes over its FOV.
@@ -47,7 +47,7 @@ A good starting configuration for a Diablo-style feel:
 
 ### Why a spring arm subclass?
 
-`UTopDownCameraComponent` switches itself to **absolute location and rotation** at BeginPlay.
+`URPGCameraComponent` switches itself to **absolute location and rotation** at BeginPlay.
 That means it ignores its parent's transform and positions itself every frame instead. You get
 camera lag, target leading, and fully detached free roam without spawning a second actor, and
 the component still behaves like a normal spring arm in the editor viewport.
@@ -92,10 +92,10 @@ character. `Auto Return To Target` brings it back after a delay, or call `Snap T
 
 ## Camera manager setup
 
-1. Create a Blueprint child of `ATopDownCameraManager` (or use the class directly).
+1. Create a Blueprint child of `ARPGCameraManager` (or use the class directly).
 2. On your PlayerController, set **Player Camera Manager Class** to it.
 
-Now any Blueprint can do `Get Player Camera Manager → Cast To Top Down Camera Manager →
+Now any Blueprint can do `Get Player Camera Manager → Cast To RPG Camera Manager →
 Add Zoom Input`, without needing a pawn reference. The manager re-resolves its cached
 components automatically whenever the view target changes, so respawning and possession
 changes are handled for you.

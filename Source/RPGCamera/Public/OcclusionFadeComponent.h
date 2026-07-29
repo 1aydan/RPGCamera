@@ -3,18 +3,18 @@
 #include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
-#include "TopDownRPGCameraTypes.h"
+#include "RPGCameraTypes.h"
 #include "OcclusionFadeComponent.generated.h"
 
 class UCameraComponent;
 class UMaterialInstanceDynamic;
 class UPrimitiveComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTDOcclusionActorChanged, AActor*, Actor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRPGOcclusionActorChanged, AActor*, Actor);
 
 /** Per-primitive fade bookkeeping. */
 USTRUCT()
-struct FTDFadeState
+struct FRPGFadeState
 {
 	GENERATED_BODY()
 
@@ -47,10 +47,10 @@ struct FTDFadeState
  * Put this on the player character (or on whatever the camera is looking at) and
  * it will sweep back toward the camera each interval, fading anything it hits.
  *
- * It is fully independent of UTopDownCameraComponent - it works with any camera.
+ * It is fully independent of URPGCameraComponent - it works with any camera.
  */
 UCLASS(ClassGroup = (Camera), meta = (BlueprintSpawnableComponent, DisplayName = "Occlusion Fade"))
-class TOPDOWNRPGCAMERA_API UOcclusionFadeComponent : public UActorComponent
+class RPGCAMERA_API UOcclusionFadeComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -129,7 +129,7 @@ public:
 	// ---------------------------------------------------------------------
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance")
-	ETDFadeMethod FadeMethod = ETDFadeMethod::CustomPrimitiveData;
+	ERPGFadeMethod FadeMethod = ERPGFadeMethod::CustomPrimitiveData;
 
 	/** Opacity a fully faded mesh settles at. 0 is invisible, 0.2 leaves a ghost. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
@@ -144,15 +144,15 @@ public:
 	float FadeInSpeed = 2.f;
 
 	/** Custom Primitive Data float index written to. Must match your material. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance", meta = (EditCondition = "FadeMethod == ETDFadeMethod::CustomPrimitiveData", ClampMin = "0", ClampMax = "31"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance", meta = (EditCondition = "FadeMethod == ERPGFadeMethod::CustomPrimitiveData", ClampMin = "0", ClampMax = "31"))
 	int32 CustomPrimitiveDataIndex = 0;
 
 	/** Scalar parameter driven on dynamic material instances. Must match your material. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance", meta = (EditCondition = "FadeMethod == ETDFadeMethod::MaterialParameter"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance", meta = (EditCondition = "FadeMethod == ERPGFadeMethod::MaterialParameter"))
 	FName FadeParameterName = TEXT("FadeAmount");
 
 	/** Keep casting shadows while hidden, so the world still reads correctly. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance", meta = (EditCondition = "FadeMethod == ETDFadeMethod::HideComponent"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance", meta = (EditCondition = "FadeMethod == ERPGFadeMethod::HideComponent"))
 	bool bKeepShadowsWhenHidden = true;
 
 	// ---------------------------------------------------------------------
@@ -160,10 +160,10 @@ public:
 	// ---------------------------------------------------------------------
 
 	UPROPERTY(BlueprintAssignable, Category = "Occlusion Fade|Events")
-	FTDOcclusionActorChanged OnActorBeganOccluding;
+	FRPGOcclusionActorChanged OnActorBeganOccluding;
 
 	UPROPERTY(BlueprintAssignable, Category = "Occlusion Fade|Events")
-	FTDOcclusionActorChanged OnActorStoppedOccluding;
+	FRPGOcclusionActorChanged OnActorStoppedOccluding;
 
 	/** Every actor currently blocking the view. */
 	UFUNCTION(BlueprintPure, Category = "Occlusion Fade")
@@ -183,7 +183,7 @@ public:
 protected:
 	/** Primitive -> fade state. */
 	UPROPERTY()
-	TMap<TObjectPtr<UPrimitiveComponent>, FTDFadeState> FadeStates;
+	TMap<TObjectPtr<UPrimitiveComponent>, FRPGFadeState> FadeStates;
 
 	UPROPERTY()
 	TWeakObjectPtr<UCameraComponent> CameraOverride;
@@ -197,9 +197,9 @@ protected:
 	void UpdateFadeAlphas(float DeltaTime);
 
 	bool ShouldFadePrimitive(const UPrimitiveComponent* Primitive) const;
-	void ApplyFade(UPrimitiveComponent* Primitive, FTDFadeState& State);
-	void CacheOriginals(UPrimitiveComponent* Primitive, FTDFadeState& State);
-	void RestorePrimitive(UPrimitiveComponent* Primitive, FTDFadeState& State);
+	void ApplyFade(UPrimitiveComponent* Primitive, FRPGFadeState& State);
+	void CacheOriginals(UPrimitiveComponent* Primitive, FRPGFadeState& State);
+	void RestorePrimitive(UPrimitiveComponent* Primitive, FRPGFadeState& State);
 
 	bool GetCameraLocation(FVector& OutLocation) const;
 	FVector GetViewTargetLocation() const;

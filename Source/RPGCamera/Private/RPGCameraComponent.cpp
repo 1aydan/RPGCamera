@@ -1,4 +1,4 @@
-#include "TopDownCameraComponent.h"
+#include "RPGCameraComponent.h"
 
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -6,9 +6,9 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
-#include "TopDownRPGCameraModule.h"
+#include "RPGCameraModule.h"
 
-UTopDownCameraComponent::UTopDownCameraComponent()
+URPGCameraComponent::URPGCameraComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.TickGroup = TG_PostPhysics;
@@ -30,7 +30,7 @@ UTopDownCameraComponent::UTopDownCameraComponent()
 	TargetArmLength = DefaultArmLength;
 }
 
-void UTopDownCameraComponent::BeginPlay()
+void URPGCameraComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -76,7 +76,7 @@ void UTopDownCameraComponent::BeginPlay()
 }
 
 #if WITH_EDITOR
-void UTopDownCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void URPGCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -92,7 +92,7 @@ void UTopDownCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& Prop
 }
 #endif
 
-void UTopDownCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void URPGCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
@@ -120,7 +120,7 @@ void UTopDownCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType
 // Zoom
 // ---------------------------------------------------------------------------
 
-void UTopDownCameraComponent::AddZoomInput(float ZoomDelta)
+void URPGCameraComponent::AddZoomInput(float ZoomDelta)
 {
 	if (FMath::IsNearlyZero(ZoomDelta))
 	{
@@ -142,7 +142,7 @@ void UTopDownCameraComponent::AddZoomInput(float ZoomDelta)
 	SetZoomDistance(GoalArmLength - (ZoomDelta * ZoomStep), false);
 }
 
-int32 UTopDownCameraComponent::GetNumZoomLevels() const
+int32 URPGCameraComponent::GetNumZoomLevels() const
 {
 	if (CustomZoomLevels.Num() > 0)
 	{
@@ -151,7 +151,7 @@ int32 UTopDownCameraComponent::GetNumZoomLevels() const
 	return FMath::Max(2, ZoomLevelCount);
 }
 
-float UTopDownCameraComponent::GetZoomLevelDistance(int32 Level) const
+float URPGCameraComponent::GetZoomLevelDistance(int32 Level) const
 {
 	const int32 NumLevels = GetNumZoomLevels();
 	const int32 Clamped = FMath::Clamp(Level, 0, NumLevels - 1);
@@ -166,7 +166,7 @@ float UTopDownCameraComponent::GetZoomLevelDistance(int32 Level) const
 	return FMath::Lerp(MinArmLength, MaxArmLength, Alpha);
 }
 
-void UTopDownCameraComponent::SetZoomLevel(int32 Level, bool bImmediate)
+void URPGCameraComponent::SetZoomLevel(int32 Level, bool bImmediate)
 {
 	const int32 Clamped = FMath::Clamp(Level, 0, GetNumZoomLevels() - 1);
 	if (Clamped == CurrentZoomLevel && !bImmediate)
@@ -182,12 +182,12 @@ void UTopDownCameraComponent::SetZoomLevel(int32 Level, bool bImmediate)
 // Field of view
 // ---------------------------------------------------------------------------
 
-void UTopDownCameraComponent::SetManagedCamera(UCameraComponent* NewCamera)
+void URPGCameraComponent::SetManagedCamera(UCameraComponent* NewCamera)
 {
 	ManagedCamera = NewCamera;
 }
 
-void UTopDownCameraComponent::ResolveManagedCamera()
+void URPGCameraComponent::ResolveManagedCamera()
 {
 	if (ManagedCamera.IsValid())
 	{
@@ -217,7 +217,7 @@ void UTopDownCameraComponent::ResolveManagedCamera()
 	}
 }
 
-void UTopDownCameraComponent::SetFieldOfView(float NewFOV, bool bImmediate)
+void URPGCameraComponent::SetFieldOfView(float NewFOV, bool bImmediate)
 {
 	GoalFOV = FMath::Clamp(NewFOV, 5.f, 170.f);
 	if (bImmediate)
@@ -226,7 +226,7 @@ void UTopDownCameraComponent::SetFieldOfView(float NewFOV, bool bImmediate)
 	}
 }
 
-void UTopDownCameraComponent::UpdateFOV(float DeltaTime)
+void URPGCameraComponent::UpdateFOV(float DeltaTime)
 {
 	if (!bManageFieldOfView)
 	{
@@ -269,7 +269,7 @@ void UTopDownCameraComponent::UpdateFOV(float DeltaTime)
 	ManagedCamera->SetFieldOfView(CurrentFOV);
 }
 
-void UTopDownCameraComponent::SetZoomDistance(float NewDistance, bool bImmediate)
+void URPGCameraComponent::SetZoomDistance(float NewDistance, bool bImmediate)
 {
 	const float Clamped = FMath::Clamp(NewDistance, MinArmLength, MaxArmLength);
 	if (FMath::IsNearlyEqual(Clamped, GoalArmLength) && !bImmediate)
@@ -288,7 +288,7 @@ void UTopDownCameraComponent::SetZoomDistance(float NewDistance, bool bImmediate
 	OnZoomChanged.Broadcast(GoalArmLength);
 }
 
-float UTopDownCameraComponent::GetNormalizedZoom() const
+float URPGCameraComponent::GetNormalizedZoom() const
 {
 	const float Range = MaxArmLength - MinArmLength;
 	if (Range <= KINDA_SMALL_NUMBER)
@@ -298,7 +298,7 @@ float UTopDownCameraComponent::GetNormalizedZoom() const
 	return FMath::Clamp((TargetArmLength - MinArmLength) / Range, 0.f, 1.f);
 }
 
-void UTopDownCameraComponent::UpdateZoom(float DeltaTime)
+void URPGCameraComponent::UpdateZoom(float DeltaTime)
 {
 	if (ZoomInterpSpeed <= 0.f)
 	{
@@ -314,7 +314,7 @@ void UTopDownCameraComponent::UpdateZoom(float DeltaTime)
 // Pitch
 // ---------------------------------------------------------------------------
 
-void UTopDownCameraComponent::UpdatePitch()
+void URPGCameraComponent::UpdatePitch()
 {
 	if (!bLinkPitchToZoom)
 	{
@@ -339,9 +339,9 @@ void UTopDownCameraComponent::UpdatePitch()
 // Yaw
 // ---------------------------------------------------------------------------
 
-void UTopDownCameraComponent::AddYawInput(float AxisValue)
+void URPGCameraComponent::AddYawInput(float AxisValue)
 {
-	if (YawMode != ETDYawMode::Continuous || FMath::IsNearlyZero(AxisValue))
+	if (YawMode != ERPGYawMode::Continuous || FMath::IsNearlyZero(AxisValue))
 	{
 		return;
 	}
@@ -350,9 +350,9 @@ void UTopDownCameraComponent::AddYawInput(float AxisValue)
 	LastYawInputTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 }
 
-void UTopDownCameraComponent::AddYawSteps(int32 Steps)
+void URPGCameraComponent::AddYawSteps(int32 Steps)
 {
-	if (YawMode == ETDYawMode::Locked || Steps == 0)
+	if (YawMode == ERPGYawMode::Locked || Steps == 0)
 	{
 		return;
 	}
@@ -361,7 +361,7 @@ void UTopDownCameraComponent::AddYawSteps(int32 Steps)
 	LastYawInputTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 }
 
-void UTopDownCameraComponent::SetYaw(float NewYaw, bool bImmediate)
+void URPGCameraComponent::SetYaw(float NewYaw, bool bImmediate)
 {
 	GoalYaw = NewYaw;
 	if (bImmediate)
@@ -370,7 +370,7 @@ void UTopDownCameraComponent::SetYaw(float NewYaw, bool bImmediate)
 	}
 }
 
-void UTopDownCameraComponent::RecenterYaw(bool bImmediate)
+void URPGCameraComponent::RecenterYaw(bool bImmediate)
 {
 	// Take the shortest path back rather than unwinding several turns.
 	GoalYaw = CurrentYaw + FRotator::NormalizeAxis(DefaultYaw - CurrentYaw);
@@ -380,20 +380,20 @@ void UTopDownCameraComponent::RecenterYaw(bool bImmediate)
 	}
 }
 
-void UTopDownCameraComponent::UpdateYaw(float DeltaTime)
+void URPGCameraComponent::UpdateYaw(float DeltaTime)
 {
-	if (YawMode == ETDYawMode::Locked)
+	if (YawMode == ERPGYawMode::Locked)
 	{
 		CurrentYaw = DefaultYaw;
 		GoalYaw = DefaultYaw;
 		return;
 	}
 
-	if (YawMode == ETDYawMode::Continuous && !FMath::IsNearlyZero(PendingYawInput))
+	if (YawMode == ERPGYawMode::Continuous && !FMath::IsNearlyZero(PendingYawInput))
 	{
 		GoalYaw += PendingYawInput * YawSpeed * DeltaTime;
 	}
-	else if (YawMode == ETDYawMode::Stepped && YawStepAngle > KINDA_SMALL_NUMBER)
+	else if (YawMode == ERPGYawMode::Stepped && YawStepAngle > KINDA_SMALL_NUMBER)
 	{
 		// Keep the goal locked to exact increments even if SetYaw was called
 		// with an arbitrary angle.
@@ -426,7 +426,7 @@ void UTopDownCameraComponent::UpdateYaw(float DeltaTime)
 // Panning
 // ---------------------------------------------------------------------------
 
-void UTopDownCameraComponent::AddPanInput(FVector2D PanInput)
+void URPGCameraComponent::AddPanInput(FVector2D PanInput)
 {
 	if (PanInput.IsNearlyZero())
 	{
@@ -436,13 +436,13 @@ void UTopDownCameraComponent::AddPanInput(FVector2D PanInput)
 	PendingPanInput += PanInput;
 	LastPanInputTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 
-	if (CameraMode == ETDCameraMode::FollowTarget && bPanSwitchesToFreeRoam)
+	if (CameraMode == ERPGCameraMode::FollowTarget && bPanSwitchesToFreeRoam)
 	{
-		SetCameraMode(ETDCameraMode::FreeRoam);
+		SetCameraMode(ERPGCameraMode::FreeRoam);
 	}
 }
 
-void UTopDownCameraComponent::ApplyEdgePan(float DeltaTime)
+void URPGCameraComponent::ApplyEdgePan(float DeltaTime)
 {
 	if (!bEnableEdgePan)
 	{
@@ -493,7 +493,7 @@ void UTopDownCameraComponent::ApplyEdgePan(float DeltaTime)
 // Focus
 // ---------------------------------------------------------------------------
 
-FVector UTopDownCameraComponent::ComputeFollowFocus(float DeltaTime) const
+FVector URPGCameraComponent::ComputeFollowFocus(float DeltaTime) const
 {
 	const AActor* Target = FollowTarget.Get();
 	if (!Target)
@@ -524,9 +524,9 @@ FVector UTopDownCameraComponent::ComputeFollowFocus(float DeltaTime) const
 	return Focus;
 }
 
-void UTopDownCameraComponent::UpdateFocus(float DeltaTime)
+void URPGCameraComponent::UpdateFocus(float DeltaTime)
 {
-	if (CameraMode == ETDCameraMode::FreeRoam)
+	if (CameraMode == ERPGCameraMode::FreeRoam)
 	{
 		if (!PendingPanInput.IsNearlyZero())
 		{
@@ -564,7 +564,7 @@ void UTopDownCameraComponent::UpdateFocus(float DeltaTime)
 			const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 			if ((Now - LastPanInputTime) >= ReturnToTargetDelay)
 			{
-				SetCameraMode(ETDCameraMode::FollowTarget);
+				SetCameraMode(ERPGCameraMode::FollowTarget);
 			}
 		}
 		return;
@@ -585,7 +585,7 @@ void UTopDownCameraComponent::UpdateFocus(float DeltaTime)
 	FreeRoamFocus = CurrentFocus;
 }
 
-FVector UTopDownCameraComponent::ClampToBounds(const FVector& InLocation) const
+FVector URPGCameraComponent::ClampToBounds(const FVector& InLocation) const
 {
 	if (!bClampToBounds)
 	{
@@ -609,7 +609,7 @@ FVector UTopDownCameraComponent::ClampToBounds(const FVector& InLocation) const
 // Mode & target
 // ---------------------------------------------------------------------------
 
-void UTopDownCameraComponent::SetCameraMode(ETDCameraMode NewMode)
+void URPGCameraComponent::SetCameraMode(ERPGCameraMode NewMode)
 {
 	if (CameraMode == NewMode)
 	{
@@ -618,7 +618,7 @@ void UTopDownCameraComponent::SetCameraMode(ETDCameraMode NewMode)
 
 	CameraMode = NewMode;
 
-	if (NewMode == ETDCameraMode::FreeRoam)
+	if (NewMode == ERPGCameraMode::FreeRoam)
 	{
 		// Start free roam exactly where the camera already is.
 		FreeRoamFocus = CurrentFocus;
@@ -627,7 +627,7 @@ void UTopDownCameraComponent::SetCameraMode(ETDCameraMode NewMode)
 	OnCameraModeChanged.Broadcast(CameraMode);
 }
 
-void UTopDownCameraComponent::SetFollowTarget(AActor* NewTarget, bool bSnapImmediately)
+void URPGCameraComponent::SetFollowTarget(AActor* NewTarget, bool bSnapImmediately)
 {
 	FollowTarget = NewTarget;
 
@@ -637,14 +637,14 @@ void UTopDownCameraComponent::SetFollowTarget(AActor* NewTarget, bool bSnapImmed
 	}
 }
 
-void UTopDownCameraComponent::SnapToTarget()
+void URPGCameraComponent::SnapToTarget()
 {
 	if (!FollowTarget.IsValid())
 	{
 		return;
 	}
 
-	SetCameraMode(ETDCameraMode::FollowTarget);
+	SetCameraMode(ERPGCameraMode::FollowTarget);
 
 	CurrentFocus = ClampToBounds(ComputeFollowFocus(0.f));
 	FreeRoamFocus = CurrentFocus;
@@ -656,21 +656,21 @@ void UTopDownCameraComponent::SnapToTarget()
 // Helpers
 // ---------------------------------------------------------------------------
 
-FVector UTopDownCameraComponent::GetPlanarForward() const
+FVector URPGCameraComponent::GetPlanarForward() const
 {
 	FVector Forward = FRotationMatrix(FRotator(0.f, CurrentYaw, 0.f)).GetUnitAxis(EAxis::X);
 	Forward.Z = 0.f;
 	return Forward.GetSafeNormal();
 }
 
-FVector UTopDownCameraComponent::GetPlanarRight() const
+FVector URPGCameraComponent::GetPlanarRight() const
 {
 	FVector Right = FRotationMatrix(FRotator(0.f, CurrentYaw, 0.f)).GetUnitAxis(EAxis::Y);
 	Right.Z = 0.f;
 	return Right.GetSafeNormal();
 }
 
-APlayerController* UTopDownCameraComponent::GetOwningPlayerController() const
+APlayerController* URPGCameraComponent::GetOwningPlayerController() const
 {
 	if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 	{
@@ -688,7 +688,7 @@ APlayerController* UTopDownCameraComponent::GetOwningPlayerController() const
 	return UGameplayStatics::GetPlayerController(this, 0);
 }
 
-bool UTopDownCameraComponent::GetCursorPointOnPlane(float PlaneZ, FVector& OutLocation) const
+bool URPGCameraComponent::GetCursorPointOnPlane(float PlaneZ, FVector& OutLocation) const
 {
 	APlayerController* PC = GetOwningPlayerController();
 	if (!PC)

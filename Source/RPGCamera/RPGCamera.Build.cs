@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class TopDownRPGCamera : ModuleRules
+public class RPGCamera : ModuleRules
 {
-	public TopDownRPGCamera(ReadOnlyTargetRules Target) : base(Target)
+	public RPGCamera(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		IWYUSupport = IWYUSupport.Full;
