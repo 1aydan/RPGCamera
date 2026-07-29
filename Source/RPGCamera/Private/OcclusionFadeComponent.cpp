@@ -248,6 +248,23 @@ bool UOcclusionFadeComponent::ShouldFadePrimitive(const UPrimitiveComponent* Pri
 		}
 	}
 
+	if (RequiredComponentTags.Num() > 0)
+	{
+		bool bHasRequiredTag = false;
+		for (const FName& Tag : RequiredComponentTags)
+		{
+			if (Primitive->ComponentHasTag(Tag))
+			{
+				bHasRequiredTag = true;
+				break;
+			}
+		}
+		if (!bHasRequiredTag)
+		{
+			return false;
+		}
+	}
+
 	const bool bImplementsInterface = Actor->GetClass()->ImplementsInterface(UFadeableTarget::StaticClass());
 
 	if (bRequireFadeableInterface && !bImplementsInterface)

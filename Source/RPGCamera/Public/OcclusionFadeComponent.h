@@ -119,6 +119,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Filter")
 	TArray<FName> RequiredActorTags;
 
+	/**
+	 * If non-empty, only primitives with one of these component tags are faded,
+	 * letting you opt in individual meshes on a multi-mesh actor. When
+	 * RequiredActorTags is also set, both filters must pass.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Filter")
+	TArray<FName> RequiredComponentTags;
+
 	/** Actors with any of these tags are never faded. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Filter")
 	TArray<FName> IgnoredActorTags;

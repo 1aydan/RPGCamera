@@ -167,6 +167,9 @@ By default everything that blocks the trace fades. To narrow it down:
 
 - `Ignored Actor Classes` — add your landscape or floor class here first.
 - `Required Actor Tags` — only fade actors tagged e.g. `Fadeable`.
+- `Required Component Tags` — only fade individual mesh components carrying one of these
+  tags, for opting in specific meshes on a multi-mesh actor. Combines with
+  `Required Actor Tags` when both are set (both must match).
 - `Ignored Actor Tags` / `Ignored Component Tags` — targeted exclusions.
 - `Require Fadeable Interface` — strictest option, only fades actors implementing
   `IFadeableTarget`.
