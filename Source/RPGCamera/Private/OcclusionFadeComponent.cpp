@@ -1,3 +1,5 @@
+// Copyright (c) 2026. Licensed for use in your own projects.
+
 #include "OcclusionFadeComponent.h"
 
 #include "Camera/CameraComponent.h"
@@ -5,6 +7,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "FadeableTarget.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -13,7 +16,10 @@
 UOcclusionFadeComponent::UOcclusionFadeComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	PrimaryComponentTick.TickGroup = TG_PostPhysics;
+
+	// The camera manager finalizes its position after TG_PostPhysics, so tick
+	// after it - otherwise every sweep uses last frame's camera location.
+	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
 }
 
 void UOcclusionFadeComponent::BeginPlay()
@@ -94,15 +100,39 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 		Params.AddIgnoredActor(GetOwner());
 	}
 
+	// A multi-sweep reports every overlap along the path but stops at the first
+	// *blocking* hit, and on most channels walls block. Re-sweep with each
+	// blocker ignored until the path to the camera is clear, so stacked walls
+	// all fade instead of just the one nearest the character.
 	TArray<FHitResult> Hits;
-	World->SweepMultiByChannel(
-		Hits,
-		TargetLocation,
-		SweepEnd,
-		FQuat::Identity,
-		TraceChannel,
-		FCollisionShape::MakeSphere(TraceRadius),
-		Params);
+	constexpr int32 MaxSweepPasses = 8;
+
+	for (int32 Pass = 0; Pass < MaxSweepPasses; ++Pass)
+	{
+		TArray<FHitResult> PassHits;
+		const bool bHitBlocker = World->SweepMultiByChannel(
+			PassHits,
+			TargetLocation,
+			SweepEnd,
+			FQuat::Identity,
+			TraceChannel,
+			FCollisionShape::MakeSphere(TraceRadius),
+			Params);
+
+		Hits.Append(PassHits);
+
+		if (!bHitBlocker || PassHits.Num() == 0)
+		{
+			break;
+		}
+
+		const UPrimitiveComponent* Blocker = PassHits.Last().GetComponent();
+		if (!Blocker)
+		{
+			break;
+		}
+		Params.AddIgnoredComponent(Blocker);
+	}
 
 	// Mark everything as clear, then re-flag what the sweep found.
 	for (TPair<TObjectPtr<UPrimitiveComponent>, FRPGFadeState>& Pair : FadeStates)
@@ -302,6 +332,17 @@ void UOcclusionFadeComponent::CacheOriginals(UPrimitiveComponent* Primitive, FRP
 	State.Alpha = 1.f;
 	State.bCachedOriginals = true;
 
+	if (FadeMethod == ERPGFadeMethod::CustomPrimitiveData)
+	{
+		// An unset slot reads 0 in the shader, but the documented setup is a
+		// default of 1 (opaque), so treat "unset" as 1 rather than restoring
+		// to invisible.
+		const TArray<float>& Data = Primitive->GetCustomPrimitiveData().Data;
+		State.OriginalCustomPrimitiveData = Data.IsValidIndex(CustomPrimitiveDataIndex)
+			? Data[CustomPrimitiveDataIndex]
+			: 1.f;
+	}
+
 	if (FadeMethod == ERPGFadeMethod::MaterialParameter)
 	{
 		const int32 NumMaterials = Primitive->GetNumMaterials();
@@ -373,7 +414,7 @@ void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, F
 	switch (FadeMethod)
 	{
 	case ERPGFadeMethod::CustomPrimitiveData:
-		Primitive->SetCustomPrimitiveDataFloat(CustomPrimitiveDataIndex, 1.f);
+		Primitive->SetCustomPrimitiveDataFloat(CustomPrimitiveDataIndex, State.OriginalCustomPrimitiveData);
 		break;
 
 	case ERPGFadeMethod::MaterialParameter:
@@ -462,7 +503,7 @@ bool UOcclusionFadeComponent::GetCameraLocation(FVector& OutLocation) const
 		return true;
 	}
 
-	if (const APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	if (const APlayerController* PC = GetRelevantPlayerController())
 	{
 		if (const APlayerCameraManager* CameraManager = PC->PlayerCameraManager)
 		{
@@ -472,6 +513,21 @@ bool UOcclusionFadeComponent::GetCameraLocation(FVector& OutLocation) const
 	}
 
 	return false;
+}
+
+APlayerController* UOcclusionFadeComponent::GetRelevantPlayerController() const
+{
+	// Prefer the controller that actually views the owner, so split screen
+	// fades against the right camera. Fall back to player 0 otherwise.
+	if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		if (APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController()))
+		{
+			return PC;
+		}
+	}
+
+	return UGameplayStatics::GetPlayerController(this, 0);
 }
 
 FVector UOcclusionFadeComponent::GetViewTargetLocation() const

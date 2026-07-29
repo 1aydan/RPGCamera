@@ -1,3 +1,5 @@
+// Copyright (c) 2026. Licensed for use in your own projects.
+
 #include "RPGCameraModule.h"
 
 DEFINE_LOG_CATEGORY(LogRPGCamera);

@@ -109,6 +109,22 @@ All passthrough functions no-op safely when no camera is resolved.
 Add an **Occlusion Fade** component to your character. It sweeps a sphere from the character
 back toward the camera and fades whatever it hits.
 
+### Trace channel
+
+By default the sweep uses **Visibility**. Because walls *block* that channel, detecting walls
+stacked behind other walls takes extra sweep passes (the component automatically re-sweeps past
+each blocker, up to 8 passes). For single-pass detection and tighter control over what can fade,
+create a dedicated channel:
+
+1. **Project Settings → Engine → Collision → Trace Channels → New Trace Channel** — name it
+   e.g. `CameraFade`, default response **Overlap**.
+2. Set the component's `Trace Channel` to `CameraFade`.
+3. Optionally set floors and landscape to **Ignore** `CameraFade` so they never show up at all.
+
+On an overlap channel nothing blocks the sweep, so every occluder comes back in one pass.
+Plugins can't ship collision channels (the `ECC_GameTraceChannel` slots belong to your
+project), which is why this is a recommended setup step rather than the default.
+
 ### Choosing a fade method
 
 **Custom Primitive Data** (default, recommended) — writes the alpha into a float slot on the
@@ -139,9 +155,11 @@ Dithered masked is usually the better choice — it's far cheaper than transluce
 correctly, which matters when several walls overlap.
 
 > One caveat: a primitive with no custom primitive data set yet reads `0` from that slot, which
-> would make it invisible on load. Either set the default value to `1` on the mesh component's
-> **Custom Primitive Data** array in the details panel, or add a `1 - x` inversion in the
-> material and treat the value as "fade amount" rather than "opacity."
+> would make it invisible on load. Set the default value to `1` on the mesh component's
+> **Custom Primitive Data Defaults** array in the details panel (or on the material's
+> **Material Property Overrides**). The component writes opacity directly — `1` is opaque,
+> `0` is faded — so do **not** invert the value in the material. Whatever value the slot held
+> before a fade is restored when the fade ends.
 
 ### Filtering
 
@@ -165,9 +183,11 @@ Optional. Implement it on an actor to get:
 ### Performance
 
 `Trace Interval` throttles detection (default 0.05s = 20 sweeps/sec) while alphas still
-interpolate every frame, so it stays smooth. Raise it to 0.1 on dense scenes. The sweep is a
-single `SweepMultiByChannel`, so cost scales with how much geometry sits between the camera
-and the character, not with world size.
+interpolate every frame, so it stays smooth. Raise it to 0.1 on dense scenes. Detection is a
+`SweepMultiByChannel` — a single pass on an overlap channel (see *Trace channel* above), or
+repeated past each blocking wall (capped at 8 passes) on blocking channels like Visibility so
+stacked occluders all fade. Cost scales with how much geometry sits between the camera and the
+character, not with world size.
 
 ---
 

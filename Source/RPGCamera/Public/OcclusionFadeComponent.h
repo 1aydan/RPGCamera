@@ -1,3 +1,5 @@
+// Copyright (c) 2026. Licensed for use in your own projects.
+
 #pragma once
 
 #include "Components/ActorComponent.h"
@@ -6,6 +8,7 @@
 #include "RPGCameraTypes.h"
 #include "OcclusionFadeComponent.generated.h"
 
+class APlayerController;
 class UCameraComponent;
 class UMaterialInstanceDynamic;
 class UPrimitiveComponent;
@@ -36,6 +39,10 @@ struct FRPGFadeState
 
 	UPROPERTY()
 	bool bOriginalCastHiddenShadow = false;
+
+	/** Custom Primitive Data value the slot held before we started writing to it. */
+	UPROPERTY()
+	float OriginalCustomPrimitiveData = 1.f;
 
 	UPROPERTY()
 	bool bCachedOriginals = false;
@@ -203,4 +210,5 @@ protected:
 
 	bool GetCameraLocation(FVector& OutLocation) const;
 	FVector GetViewTargetLocation() const;
+	APlayerController* GetRelevantPlayerController() const;
 };

@@ -1,3 +1,5 @@
+// Copyright (c) 2026. Licensed for use in your own projects.
+
 #include "RPGCameraComponent.h"
 
 #include "Camera/CameraComponent.h"
@@ -68,7 +70,7 @@ void URPGCameraComponent::BeginPlay()
 
 	UpdatePitch();
 
-	CurrentFocus = ComputeFollowFocus(0.f);
+	CurrentFocus = ComputeFollowFocus();
 	FreeRoamFocus = CurrentFocus;
 	bHasInitializedFocus = true;
 
@@ -114,6 +116,7 @@ void URPGCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	// Consume this frame's buffered input.
 	PendingPanInput = FVector2D::ZeroVector;
 	PendingYawInput = 0.f;
+	PendingPanSpeedScale = 1.f;
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +275,8 @@ void URPGCameraComponent::UpdateFOV(float DeltaTime)
 void URPGCameraComponent::SetZoomDistance(float NewDistance, bool bImmediate)
 {
 	const float Clamped = FMath::Clamp(NewDistance, MinArmLength, MaxArmLength);
-	if (FMath::IsNearlyEqual(Clamped, GoalArmLength) && !bImmediate)
+	const bool bChanged = !FMath::IsNearlyEqual(Clamped, GoalArmLength);
+	if (!bChanged && !bImmediate)
 	{
 		return;
 	}
@@ -285,7 +289,10 @@ void URPGCameraComponent::SetZoomDistance(float NewDistance, bool bImmediate)
 		UpdatePitch();
 	}
 
-	OnZoomChanged.Broadcast(GoalArmLength);
+	if (bChanged)
+	{
+		OnZoomChanged.Broadcast(GoalArmLength);
+	}
 }
 
 float URPGCameraComponent::GetNormalizedZoom() const
@@ -420,6 +427,16 @@ void URPGCameraComponent::UpdateYaw(float DeltaTime)
 		const float Delta = FRotator::NormalizeAxis(GoalYaw - CurrentYaw);
 		CurrentYaw += Delta * FMath::Clamp(YawInterpSpeed * DeltaTime, 0.f, 1.f);
 	}
+
+	// Continuous spinning in one direction grows the angles without bound,
+	// eventually costing float precision. Rewind whole turns once the value
+	// strays far from home, shifting both angles equally to preserve the arc.
+	if (FMath::Abs(CurrentYaw) > 4.f * 360.f)
+	{
+		const float Rewind = FRotator::NormalizeAxis(CurrentYaw) - CurrentYaw;
+		CurrentYaw += Rewind;
+		GoalYaw += Rewind;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -485,7 +502,12 @@ void URPGCameraComponent::ApplyEdgePan(float DeltaTime)
 
 	if (!EdgeInput.IsNearlyZero())
 	{
-		AddPanInput(EdgeInput * EdgePanSpeedScale);
+		// Pan input gets direction-normalized in UpdateFocus, which would
+		// silently discard a scale baked into the vector. Feed a unit
+		// direction and apply the scale to this frame's pan speed instead.
+		EdgeInput.Normalize();
+		PendingPanSpeedScale = EdgePanSpeedScale;
+		AddPanInput(EdgeInput);
 	}
 }
 
@@ -493,7 +515,7 @@ void URPGCameraComponent::ApplyEdgePan(float DeltaTime)
 // Focus
 // ---------------------------------------------------------------------------
 
-FVector URPGCameraComponent::ComputeFollowFocus(float DeltaTime) const
+FVector URPGCameraComponent::ComputeFollowFocus() const
 {
 	const AActor* Target = FollowTarget.Get();
 	if (!Target)
@@ -540,7 +562,7 @@ void URPGCameraComponent::UpdateFocus(float DeltaTime)
 			Forward.Normalize();
 			Right.Normalize();
 
-			float Speed = PanSpeed;
+			float Speed = PanSpeed * PendingPanSpeedScale;
 			if (bScalePanSpeedWithZoom && DefaultArmLength > KINDA_SMALL_NUMBER)
 			{
 				Speed *= (TargetArmLength / DefaultArmLength);
@@ -570,7 +592,7 @@ void URPGCameraComponent::UpdateFocus(float DeltaTime)
 		return;
 	}
 
-	const FVector Desired = ClampToBounds(ComputeFollowFocus(DeltaTime));
+	const FVector Desired = ClampToBounds(ComputeFollowFocus());
 
 	const bool bShouldSnap =
 		!bHasInitializedFocus ||
@@ -646,7 +668,7 @@ void URPGCameraComponent::SnapToTarget()
 
 	SetCameraMode(ERPGCameraMode::FollowTarget);
 
-	CurrentFocus = ClampToBounds(ComputeFollowFocus(0.f));
+	CurrentFocus = ClampToBounds(ComputeFollowFocus());
 	FreeRoamFocus = CurrentFocus;
 
 	SetWorldLocationAndRotation(CurrentFocus, FRotator(CurrentPitch, CurrentYaw, 0.f));

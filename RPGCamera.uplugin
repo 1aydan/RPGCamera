@@ -5,7 +5,7 @@
 	"FriendlyName": "RPG Camera",
 	"Description": "Modular top-down / ARPG camera toolkit: flexible camera control, view-obstruction fading, and cursor hover tracking. C++ core, fully Blueprint exposed.",
 	"Category": "Camera",
-	"CreatedBy": "",
+	"CreatedBy": "Aydan Edwards",
 	"CreatedByURL": "",
 	"DocsURL": "",
 	"MarketplaceURL": "",

@@ -1,3 +1,5 @@
+// Copyright (c) 2026. Licensed for use in your own projects.
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -332,7 +334,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RPG Camera")
 	void AddYawInput(float AxisValue);
 
-	/** Rotate by whole steps. Only meaningful in Stepped yaw mode. */
+	/** Rotate by whole steps of YawStepAngle. Works in Stepped and Continuous modes; ignored while yaw is Locked. */
 	UFUNCTION(BlueprintCallable, Category = "RPG Camera")
 	void AddYawSteps(int32 Steps);
 
@@ -394,6 +396,9 @@ protected:
 	FVector2D PendingPanInput = FVector2D::ZeroVector;
 	float PendingYawInput = 0.f;
 
+	/** Speed multiplier for this frame's pan, e.g. from edge panning. */
+	float PendingPanSpeedScale = 1.f;
+
 	double LastPanInputTime = -1.0e30;
 	double LastYawInputTime = -1.0e30;
 
@@ -401,7 +406,7 @@ protected:
 
 	APlayerController* GetOwningPlayerController() const;
 
-	FVector ComputeFollowFocus(float DeltaTime) const;
+	FVector ComputeFollowFocus() const;
 	void ApplyEdgePan(float DeltaTime);
 	void UpdateZoom(float DeltaTime);
 	void UpdateYaw(float DeltaTime);

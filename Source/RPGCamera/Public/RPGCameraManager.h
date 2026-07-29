@@ -1,3 +1,5 @@
+// Copyright (c) 2026. Licensed for use in your own projects.
+
 #pragma once
 
 #include "Camera/PlayerCameraManager.h"
