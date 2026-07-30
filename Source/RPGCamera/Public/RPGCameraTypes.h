@@ -30,6 +30,121 @@ enum class ERPGYawMode : uint8
 	Stepped			UMETA(DisplayName = "Stepped")
 };
 
+/** Camera-derived vector value that can be pushed to a material parameter collection. */
+UENUM(BlueprintType)
+enum class ERPGCameraVectorSource : uint8
+{
+	/** Target location minus camera location, unnormalized. World units. */
+	CameraToTarget				UMETA(DisplayName = "Camera To Target"),
+
+	/** As above, normalized to unit length. */
+	CameraToTargetNormalized	UMETA(DisplayName = "Camera To Target (Normalized)"),
+
+	/** Camera to target with Z zeroed, for cylinder/capsule cutouts that ignore height. */
+	CameraToTargetXY			UMETA(DisplayName = "Camera To Target (Horizontal)"),
+
+	/** Horizontal camera to target, normalized. */
+	CameraToTargetXYNormalized	UMETA(DisplayName = "Camera To Target (Horizontal, Normalized)"),
+
+	/** Camera location minus target location. The reverse of Camera To Target. */
+	TargetToCamera				UMETA(DisplayName = "Target To Camera"),
+
+	/** As above, normalized to unit length. */
+	TargetToCameraNormalized	UMETA(DisplayName = "Target To Camera (Normalized)"),
+
+	/** World location of the camera. */
+	CameraLocation				UMETA(DisplayName = "Camera Location"),
+
+	/** World location of the follow target. */
+	TargetLocation				UMETA(DisplayName = "Target Location"),
+
+	/** World location the camera is looking at, which differs from the target while free roaming. */
+	FocusLocation				UMETA(DisplayName = "Focus Location"),
+
+	/** Camera forward vector. */
+	CameraForward				UMETA(DisplayName = "Camera Forward"),
+
+	/** Fixed value, for tuning constants that live alongside the driven ones. */
+	Constant					UMETA(DisplayName = "Constant")
+};
+
+/** Camera-derived scalar value that can be pushed to a material parameter collection. */
+UENUM(BlueprintType)
+enum class ERPGCameraScalarSource : uint8
+{
+	/** Current spring arm length in world units. */
+	ArmLength					UMETA(DisplayName = "Arm Length"),
+
+	/** Zoom remapped to 0 at min arm length, 1 at max. */
+	NormalizedZoom				UMETA(DisplayName = "Normalized Zoom"),
+
+	/** Straight-line distance from camera to target. */
+	DistanceToTarget			UMETA(DisplayName = "Distance To Target"),
+
+	/** Distance from camera to target ignoring height. */
+	HorizontalDistanceToTarget	UMETA(DisplayName = "Horizontal Distance To Target"),
+
+	/** World Z of the follow target, useful as a clip plane height. */
+	TargetZ						UMETA(DisplayName = "Target Z"),
+
+	/** World Z of the camera. */
+	CameraZ						UMETA(DisplayName = "Camera Z"),
+
+	/** Current camera pitch in degrees. */
+	Pitch						UMETA(DisplayName = "Pitch"),
+
+	/** Current camera yaw in degrees. */
+	Yaw							UMETA(DisplayName = "Yaw"),
+
+	/** Current field of view in degrees. */
+	FieldOfView					UMETA(DisplayName = "Field Of View"),
+
+	/** Fixed value, for tuning constants that live alongside the driven ones. */
+	Constant					UMETA(DisplayName = "Constant")
+};
+
+/** One vector entry in the collection the camera writes to each frame. */
+USTRUCT(BlueprintType)
+struct FRPGCameraVectorParameter
+{
+	GENERATED_BODY()
+
+	/** Name of the vector parameter in the collection. Must match exactly. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter")
+	FName ParameterName;
+
+	/** Which camera value feeds this parameter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter")
+	ERPGCameraVectorSource Source = ERPGCameraVectorSource::CameraToTarget;
+
+	/** Value written when Source is Constant. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter", meta = (EditCondition = "Source == ERPGCameraVectorSource::Constant", EditConditionHides))
+	FLinearColor ConstantValue = FLinearColor::Black;
+};
+
+/** One scalar entry in the collection the camera writes to each frame. */
+USTRUCT(BlueprintType)
+struct FRPGCameraScalarParameter
+{
+	GENERATED_BODY()
+
+	/** Name of the scalar parameter in the collection. Must match exactly. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter")
+	FName ParameterName;
+
+	/** Which camera value feeds this parameter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter")
+	ERPGCameraScalarSource Source = ERPGCameraScalarSource::ArmLength;
+
+	/** Value written when Source is Constant. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter", meta = (EditCondition = "Source == ERPGCameraScalarSource::Constant", EditConditionHides))
+	float ConstantValue = 0.f;
+
+	/** Writes the square of the resolved value. Feeds the *Squared parameters that shaders use to skip a sqrt. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter")
+	bool bSquareValue = false;
+};
+
 /** Technique used to make an obstructing mesh see-through. */
 UENUM(BlueprintType)
 enum class ERPGFadeMethod : uint8
