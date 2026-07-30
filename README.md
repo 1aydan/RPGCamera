@@ -7,9 +7,9 @@ Three classes, all independent of each other:
 
 | Class | Type | Purpose |
 |---|---|---|
-| `URPGCameraComponent` | `USpringArmComponent` | Camera control: follow, pan, rotate, zoom, pitch, FOV |
+| `URPGCameraComponent` | `USpringArmComponent` | Camera control: follow, pan, rotate, zoom, pitch, FOV, material parameters |
 | `ARPGCameraManager` | `APlayerCameraManager` | Single Blueprint entry point to the active camera |
-| `UOcclusionFadeComponent` | `UActorComponent` | Fades meshes that block the view of your character, and/or feeds camera values to your materials |
+| `UOcclusionFadeComponent` | `UActorComponent` | Fades meshes that block the view of your character |
 
 ---
 
@@ -104,20 +104,83 @@ All passthrough functions no-op safely when no camera is resolved.
 
 ---
 
+## Material parameters
+
+The camera can publish its own state into a **Material Parameter Collection** every frame.
+That lets materials do their own view-obstruction work — cylinder cutouts around the player,
+height clipping, distance falloff — with no traces, no dynamic material instances, and no
+per-mesh component. One global vector is usually all a cutout shader needs.
+
+This is independent of the occlusion fade component below. Use either, or both.
+
+### Setup
+
+1. Create a Material Parameter Collection asset with the scalar and vector parameters your
+   materials read.
+2. On the RPG Camera component, set **Parameter Collection** to it.
+3. Fill in **Vector Parameters** / **Scalar Parameters**. Each entry is a parameter name plus
+   the camera value that feeds it.
+
+The plugin never assumes parameter names — you map every one yourself, so the collection can
+follow whatever naming your project already uses.
+
+### Vector sources
+
+| Source | Value |
+|---|---|
+| `Camera To Target` | Target location minus camera location, in world units |
+| `Camera To Target (Normalized)` | The same, unit length |
+| `Camera To Target (Horizontal)` | As above with Z zeroed, for cutouts that ignore height |
+| `Camera To Target (Horizontal, Normalized)` | Horizontal, unit length |
+| `Target To Camera` | The reverse direction |
+| `Target To Camera (Normalized)` | The reverse direction, unit length |
+| `Camera Location` | World location of the camera |
+| `Target Location` | World location of the follow target |
+| `Focus Location` | What the camera is looking at — differs from the target during free roam |
+| `Camera Forward` | Camera forward vector |
+| `Constant` | A fixed value you type in |
+
+### Scalar sources
+
+| Source | Value |
+|---|---|
+| `Arm Length` | Current arm length in world units |
+| `Normalized Zoom` | 0 at min arm length, 1 at max |
+| `Distance To Target` | Straight-line camera-to-target distance |
+| `Horizontal Distance To Target` | The same, ignoring height |
+| `Target Z` | World Z of the follow target, handy as a clip plane height |
+| `Camera Z` | World Z of the camera |
+| `Pitch` / `Yaw` | Current camera angles in degrees |
+| `Field Of View` | Current FOV in degrees |
+| `Constant` | A fixed value you type in |
+
+`Constant` exists so the tuning values your shader needs can live in the same list as the
+driven ones, rather than being split between the collection's defaults and the camera. Scalars
+also have a **Square Value** flag, which feeds the squared parameters shaders use to compare
+distances without a `sqrt`.
+
+### Notes
+
+Parameters are pushed at the end of the camera's tick, after its transform has been applied,
+so materials always read the current frame's position. They're seeded once at `BeginPlay` too,
+so the first rendered frame isn't using stale defaults. Call `Update Material Parameters`
+manually if you move the camera outside the normal tick and need a mid-frame refresh.
+
+A name that doesn't exist in the collection logs a warning once, not once per frame.
+
+Whether your shader wants `Camera To Target` or `Target To Camera` depends on how it builds
+its cutout. If the effect lands on the wrong side of the character, flip the source.
+
+---
+
 ## Occlusion fade setup
 
-Add an **Occlusion Fade** component to your character. It offers two independent ways to deal
-with geometry between the camera and your character — use either, or both:
+Add an **Occlusion Fade** component to your character. It sweeps a sphere from the character
+back toward the camera and fades whatever it hits.
 
-- **Trace-based fading** sweeps a sphere from the character back toward the camera and fades
-  whatever it hits, one mesh at a time. Costs traces, but needs no material authoring beyond
-  a single opacity input. Covered in this section.
-- **Material parameters** publish the camera's position into a Material Parameter Collection
-  so your materials cut themselves out. No traces and no dynamic material instances, but your
-  materials have to do the work. Covered in the next section.
-
-Both live on this component rather than on the camera, so neither costs anything until you add
-it. `Fade Enabled` switches off the trace-based half without touching the material parameters.
+This is the trace-driven alternative to the material parameter approach above: it picks out
+individual occluding meshes and fades each one, rather than letting every material decide for
+itself. It costs traces but needs no material authoring beyond a single opacity input.
 
 ### Trace channel
 
@@ -204,76 +267,6 @@ character, not with world size.
 
 ---
 
-## Material parameters
-
-The occlusion fade component can publish the current view into a **Material Parameter
-Collection** every frame. That lets materials do their own obstruction work — cylinder cutouts
-around the player, height clipping, distance falloff — with no traces and no dynamic material
-instances. One global vector is usually all a cutout shader needs.
-
-Every value resolves from the active camera manager and the view target, so this works with any
-camera, not just `URPGCameraComponent`.
-
-### Setup
-
-1. Create a Material Parameter Collection asset with the scalar and vector parameters your
-   materials read.
-2. On the Occlusion Fade component, set **Parameter Collection** to it.
-3. Fill in **Vector Parameters** / **Scalar Parameters**. Each entry is a parameter name plus
-   the view value that feeds it.
-
-The plugin never assumes parameter names — you map every one yourself, so the collection can
-follow whatever naming your project already uses.
-
-If you only want this half, leave `Fade Enabled` off. Nothing is written until you assign a
-collection, so an unused component costs nothing.
-
-### Vector sources
-
-| Source | Value |
-|---|---|
-| `Camera To Target` | Target location minus camera location, in world units |
-| `Camera To Target (Normalized)` | The same, unit length |
-| `Camera To Target (Horizontal)` | As above with Z zeroed, for cutouts that ignore height |
-| `Camera To Target (Horizontal, Normalized)` | Horizontal, unit length |
-| `Target To Camera` | The reverse direction |
-| `Target To Camera (Normalized)` | The reverse direction, unit length |
-| `Camera Location` | World location of the camera |
-| `Target Location` | World location of the view target, including `View Target Offset` |
-| `Camera Forward` | Camera forward vector |
-| `Constant` | A fixed value you type in |
-
-### Scalar sources
-
-| Source | Value |
-|---|---|
-| `Distance To Target` | Straight-line camera-to-target distance. Stands in for zoom on a follow camera |
-| `Horizontal Distance To Target` | The same, ignoring height |
-| `Target Z` | World Z of the view target, handy as a clip plane height |
-| `Camera Z` | World Z of the camera |
-| `Pitch` / `Yaw` | Current camera angles in degrees |
-| `Field Of View` | Current FOV in degrees |
-| `Constant` | A fixed value you type in |
-
-`Constant` exists so the tuning values your shader needs can live in the same list as the
-driven ones, rather than being split between the collection's defaults and the component.
-Scalars also have a **Square Value** flag, which feeds the squared parameters shaders use to
-compare distances without a `sqrt`.
-
-### Notes
-
-The component ticks in `TG_PostUpdateWork`, after the camera manager has finalized its
-position, so materials always read the current frame's view rather than the last one. Values
-are seeded once at `BeginPlay` too, so the first rendered frame isn't using stale defaults.
-Call `Update Material Parameters` manually if you need a mid-frame refresh.
-
-A name that doesn't exist in the collection logs a warning once, not once per frame.
-
-Whether your shader wants `Camera To Target` or `Target To Camera` depends on how it builds its
-cutout. If the effect lands on the wrong side of the character, flip the source.
-
----
-
 ## Blueprint quick reference
 
 ```
@@ -293,9 +286,9 @@ Camera Manager → Snap To Target
 Camera Manager → Set Follow Target (TargetActor, true)
 Camera Manager → Set Follow Target (PlayerPawn, false)
 
-// Read a view value directly, without going through the collection
-Occlusion Fade → Resolve Vector Source (Camera To Target)
-Occlusion Fade → Resolve Scalar Source (Distance To Target)
+// Read a camera value directly, without going through the collection
+RPG Camera → Resolve Vector Source (Camera To Target)
+RPG Camera → Get Camera Location / Get Target Location
 ```
 
 ---

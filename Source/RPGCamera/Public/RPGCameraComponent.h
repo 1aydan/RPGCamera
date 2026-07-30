@@ -277,6 +277,28 @@ public:
 	bool bClampVertical = false;
 
 	// ---------------------------------------------------------------------
+	// Material parameters
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Optional collection updated every frame with the camera values listed below.
+	 * Lets materials do their own occlusion work — cylinder cutouts, height clipping,
+	 * distance falloff — without any per-mesh traces or dynamic material instances.
+	 *
+	 * The plugin never assumes parameter names; you map each one yourself.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RPG Camera|Material Parameters")
+	TObjectPtr<class UMaterialParameterCollection> ParameterCollection;
+
+	/** Vector parameters written to ParameterCollection. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RPG Camera|Material Parameters", meta = (TitleProperty = "ParameterName"))
+	TArray<FRPGCameraVectorParameter> VectorParameters;
+
+	/** Scalar parameters written to ParameterCollection. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RPG Camera|Material Parameters", meta = (TitleProperty = "ParameterName"))
+	TArray<FRPGCameraScalarParameter> ScalarParameters;
+
+	// ---------------------------------------------------------------------
 	// Events
 	// ---------------------------------------------------------------------
 
@@ -377,6 +399,25 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RPG Camera")
 	FVector GetCameraLocation() const;
 
+	/** World location of the follow target, falling back to the current focus point. */
+	UFUNCTION(BlueprintPure, Category = "RPG Camera")
+	FVector GetTargetLocation() const;
+
+	/** Resolve one vector source against the camera's current state. */
+	UFUNCTION(BlueprintPure, Category = "RPG Camera|Material Parameters")
+	FVector ResolveVectorSource(ERPGCameraVectorSource Source) const;
+
+	/** Resolve one scalar source against the camera's current state. */
+	UFUNCTION(BlueprintPure, Category = "RPG Camera|Material Parameters")
+	float ResolveScalarSource(ERPGCameraScalarSource Source) const;
+
+	/**
+	 * Push every configured parameter to ParameterCollection.
+	 * Called automatically each tick; call manually if you need a mid-frame refresh.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RPG Camera|Material Parameters")
+	void UpdateMaterialParameters();
+
 protected:
 	/** Runtime focus point, interpolated. */
 	FVector CurrentFocus = FVector::ZeroVector;
@@ -407,6 +448,9 @@ protected:
 	double LastYawInputTime = -1.0e30;
 
 	bool bHasInitializedFocus = false;
+
+	/** Parameter names already reported as missing, so a typo warns once instead of every frame. */
+	TSet<FName> WarnedParameterNames;
 
 	APlayerController* GetOwningPlayerController() const;
 

@@ -191,46 +191,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Occlusion Fade")
 	void SetViewTarget(AActor* NewTarget);
 
-	// ---------------------------------------------------------------------
-	// Material parameters
-	// ---------------------------------------------------------------------
-
-	/**
-	 * Optional collection updated every frame with the view values listed below.
-	 * Lets materials do their own occlusion work - cylinder cutouts, height clipping,
-	 * distance falloff - without any traces or dynamic material instances.
-	 *
-	 * Independent of the trace-based fading above: leave bFadeEnabled off to use only
-	 * this. Nothing is written until you assign a collection, so it costs nothing unused.
-	 *
-	 * The plugin never assumes parameter names; you map each one yourself.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Material Parameters")
-	TObjectPtr<class UMaterialParameterCollection> ParameterCollection;
-
-	/** Vector parameters written to ParameterCollection. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Material Parameters", meta = (TitleProperty = "ParameterName"))
-	TArray<FRPGCameraVectorParameter> VectorParameters;
-
-	/** Scalar parameters written to ParameterCollection. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Material Parameters", meta = (TitleProperty = "ParameterName"))
-	TArray<FRPGCameraScalarParameter> ScalarParameters;
-
-	/** Resolve one vector source against the current view. */
-	UFUNCTION(BlueprintPure, Category = "Occlusion Fade|Material Parameters")
-	FVector ResolveVectorSource(ERPGCameraVectorSource Source) const;
-
-	/** Resolve one scalar source against the current view. */
-	UFUNCTION(BlueprintPure, Category = "Occlusion Fade|Material Parameters")
-	float ResolveScalarSource(ERPGCameraScalarSource Source) const;
-
-	/**
-	 * Push every configured parameter to ParameterCollection.
-	 * Called automatically each tick; call manually if you need a mid-frame refresh.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Occlusion Fade|Material Parameters")
-	void UpdateMaterialParameters();
-
 	/** Camera used as the sweep origin. Defaults to the local player's view. */
 	UFUNCTION(BlueprintCallable, Category = "Occlusion Fade")
 	void SetCameraOverride(UCameraComponent* NewCamera);
@@ -257,16 +217,6 @@ protected:
 	void RestorePrimitive(UPrimitiveComponent* Primitive, FRPGFadeState& State);
 
 	bool GetCameraLocation(FVector& OutLocation) const;
-
-	/** Camera rotation from the override camera, else the active camera manager. */
-	bool GetCameraRotation(FRotator& OutRotation) const;
-
-	/** Camera FOV in degrees from the override camera, else the active camera manager. */
-	bool GetCameraFOV(float& OutFOV) const;
-
 	FVector GetViewTargetLocation() const;
 	APlayerController* GetRelevantPlayerController() const;
-
-	/** Parameter names already reported as missing, so a typo warns once instead of every frame. */
-	TSet<FName> WarnedParameterNames;
 };

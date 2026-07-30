@@ -30,11 +30,7 @@ enum class ERPGYawMode : uint8
 	Stepped			UMETA(DisplayName = "Stepped")
 };
 
-/**
- * View-derived vector value that can be pushed to a material parameter collection.
- * Every source resolves from the active camera and the view target, so these work
- * with any camera, not just URPGCameraComponent.
- */
+/** Camera-derived vector value that can be pushed to a material parameter collection. */
 UENUM(BlueprintType)
 enum class ERPGCameraVectorSource : uint8
 {
@@ -59,8 +55,11 @@ enum class ERPGCameraVectorSource : uint8
 	/** World location of the camera. */
 	CameraLocation				UMETA(DisplayName = "Camera Location"),
 
-	/** World location of the view target. */
+	/** World location of the follow target. */
 	TargetLocation				UMETA(DisplayName = "Target Location"),
+
+	/** World location the camera is looking at, which differs from the target while free roaming. */
+	FocusLocation				UMETA(DisplayName = "Focus Location"),
 
 	/** Camera forward vector. */
 	CameraForward				UMETA(DisplayName = "Camera Forward"),
@@ -69,21 +68,23 @@ enum class ERPGCameraVectorSource : uint8
 	Constant					UMETA(DisplayName = "Constant")
 };
 
-/**
- * View-derived scalar value that can be pushed to a material parameter collection.
- * Every source resolves from the active camera and the view target, so these work
- * with any camera, not just URPGCameraComponent.
- */
+/** Camera-derived scalar value that can be pushed to a material parameter collection. */
 UENUM(BlueprintType)
 enum class ERPGCameraScalarSource : uint8
 {
-	/** Straight-line distance from camera to target. Stands in for zoom on a follow camera. */
+	/** Current spring arm length in world units. */
+	ArmLength					UMETA(DisplayName = "Arm Length"),
+
+	/** Zoom remapped to 0 at min arm length, 1 at max. */
+	NormalizedZoom				UMETA(DisplayName = "Normalized Zoom"),
+
+	/** Straight-line distance from camera to target. */
 	DistanceToTarget			UMETA(DisplayName = "Distance To Target"),
 
 	/** Distance from camera to target ignoring height. */
 	HorizontalDistanceToTarget	UMETA(DisplayName = "Horizontal Distance To Target"),
 
-	/** World Z of the view target, useful as a clip plane height. */
+	/** World Z of the follow target, useful as a clip plane height. */
 	TargetZ						UMETA(DisplayName = "Target Z"),
 
 	/** World Z of the camera. */
@@ -133,7 +134,7 @@ struct FRPGCameraScalarParameter
 
 	/** Which camera value feeds this parameter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter")
-	ERPGCameraScalarSource Source = ERPGCameraScalarSource::DistanceToTarget;
+	ERPGCameraScalarSource Source = ERPGCameraScalarSource::ArmLength;
 
 	/** Value written when Source is Constant. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Parameter", meta = (EditCondition = "Source == ERPGCameraScalarSource::Constant", EditConditionHides))
