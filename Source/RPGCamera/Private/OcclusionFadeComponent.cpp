@@ -11,6 +11,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialParameterCollection.h"
+#include "Materials/MaterialParameterCollectionInstance.h"
 #include "RPGCameraModule.h"
 
 UOcclusionFadeComponent::UOcclusionFadeComponent()
@@ -30,6 +32,9 @@ void UOcclusionFadeComponent::BeginPlay()
 	{
 		ViewTarget = GetOwner();
 	}
+
+	// Seed the collection so the first rendered frame isn't using stale defaults.
+	UpdateMaterialParameters();
 }
 
 void UOcclusionFadeComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -41,6 +46,10 @@ void UOcclusionFadeComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void UOcclusionFadeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Not gated by bFadeEnabled: driving materials is an independent opt-in, so a
+	// collection can be used on its own with trace-based fading switched off.
+	UpdateMaterialParameters();
 
 	if (!bFadeEnabled)
 	{
@@ -510,6 +519,212 @@ void UOcclusionFadeComponent::SetViewTarget(AActor* NewTarget)
 void UOcclusionFadeComponent::SetCameraOverride(UCameraComponent* NewCamera)
 {
 	CameraOverride = NewCamera;
+}
+
+bool UOcclusionFadeComponent::GetCameraRotation(FRotator& OutRotation) const
+{
+	if (CameraOverride.IsValid())
+	{
+		OutRotation = CameraOverride->GetComponentRotation();
+		return true;
+	}
+
+	if (const APlayerController* PC = GetRelevantPlayerController())
+	{
+		if (const APlayerCameraManager* CameraManager = PC->PlayerCameraManager)
+		{
+			OutRotation = CameraManager->GetCameraRotation();
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UOcclusionFadeComponent::GetCameraFOV(float& OutFOV) const
+{
+	if (CameraOverride.IsValid())
+	{
+		OutFOV = CameraOverride->FieldOfView;
+		return true;
+	}
+
+	if (const APlayerController* PC = GetRelevantPlayerController())
+	{
+		if (const APlayerCameraManager* CameraManager = PC->PlayerCameraManager)
+		{
+			OutFOV = CameraManager->GetFOVAngle();
+			return true;
+		}
+	}
+
+	return false;
+}
+
+FVector UOcclusionFadeComponent::ResolveVectorSource(ERPGCameraVectorSource Source) const
+{
+	if (Source == ERPGCameraVectorSource::CameraForward)
+	{
+		FRotator CameraRotation;
+		return GetCameraRotation(CameraRotation) ? CameraRotation.Vector() : FVector::ZeroVector;
+	}
+
+	FVector CameraLoc;
+	if (!GetCameraLocation(CameraLoc))
+	{
+		return FVector::ZeroVector;
+	}
+
+	const FVector TargetLoc = GetViewTargetLocation();
+
+	switch (Source)
+	{
+	case ERPGCameraVectorSource::CameraToTarget:
+		return TargetLoc - CameraLoc;
+
+	case ERPGCameraVectorSource::CameraToTargetNormalized:
+		return (TargetLoc - CameraLoc).GetSafeNormal();
+
+	case ERPGCameraVectorSource::CameraToTargetXY:
+		return FVector(TargetLoc.X - CameraLoc.X, TargetLoc.Y - CameraLoc.Y, 0.f);
+
+	case ERPGCameraVectorSource::CameraToTargetXYNormalized:
+		return FVector(TargetLoc.X - CameraLoc.X, TargetLoc.Y - CameraLoc.Y, 0.f).GetSafeNormal();
+
+	case ERPGCameraVectorSource::TargetToCamera:
+		return CameraLoc - TargetLoc;
+
+	case ERPGCameraVectorSource::TargetToCameraNormalized:
+		return (CameraLoc - TargetLoc).GetSafeNormal();
+
+	case ERPGCameraVectorSource::CameraLocation:
+		return CameraLoc;
+
+	case ERPGCameraVectorSource::TargetLocation:
+		return TargetLoc;
+
+	case ERPGCameraVectorSource::Constant:
+	default:
+		return FVector::ZeroVector;
+	}
+}
+
+float UOcclusionFadeComponent::ResolveScalarSource(ERPGCameraScalarSource Source) const
+{
+	switch (Source)
+	{
+	case ERPGCameraScalarSource::Pitch:
+	case ERPGCameraScalarSource::Yaw:
+	{
+		FRotator CameraRotation;
+		if (!GetCameraRotation(CameraRotation))
+		{
+			return 0.f;
+		}
+		return (Source == ERPGCameraScalarSource::Pitch) ? CameraRotation.Pitch : CameraRotation.Yaw;
+	}
+
+	case ERPGCameraScalarSource::FieldOfView:
+	{
+		float FOV = 0.f;
+		GetCameraFOV(FOV);
+		return FOV;
+	}
+
+	case ERPGCameraScalarSource::TargetZ:
+		return GetViewTargetLocation().Z;
+
+	case ERPGCameraScalarSource::Constant:
+		return 0.f;
+
+	default:
+		break;
+	}
+
+	// Everything left needs the camera position.
+	FVector CameraLoc;
+	if (!GetCameraLocation(CameraLoc))
+	{
+		return 0.f;
+	}
+
+	switch (Source)
+	{
+	case ERPGCameraScalarSource::DistanceToTarget:
+		return FVector::Dist(CameraLoc, GetViewTargetLocation());
+
+	case ERPGCameraScalarSource::HorizontalDistanceToTarget:
+		return FVector::Dist2D(CameraLoc, GetViewTargetLocation());
+
+	case ERPGCameraScalarSource::CameraZ:
+		return CameraLoc.Z;
+
+	default:
+		return 0.f;
+	}
+}
+
+void UOcclusionFadeComponent::UpdateMaterialParameters()
+{
+	if (!ParameterCollection || (VectorParameters.IsEmpty() && ScalarParameters.IsEmpty()))
+	{
+		return;
+	}
+
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	UMaterialParameterCollectionInstance* Instance = World->GetParameterCollectionInstance(ParameterCollection);
+	if (!Instance)
+	{
+		return;
+	}
+
+	for (const FRPGCameraVectorParameter& Param : VectorParameters)
+	{
+		if (Param.ParameterName.IsNone())
+		{
+			continue;
+		}
+
+		const FLinearColor Value = (Param.Source == ERPGCameraVectorSource::Constant)
+			? Param.ConstantValue
+			: FLinearColor(ResolveVectorSource(Param.Source));
+
+		if (!Instance->SetVectorParameterValue(Param.ParameterName, Value) && !WarnedParameterNames.Contains(Param.ParameterName))
+		{
+			WarnedParameterNames.Add(Param.ParameterName);
+			UE_LOG(LogRPGCamera, Warning, TEXT("Vector parameter '%s' not found in collection '%s'."),
+				*Param.ParameterName.ToString(), *ParameterCollection->GetName());
+		}
+	}
+
+	for (const FRPGCameraScalarParameter& Param : ScalarParameters)
+	{
+		if (Param.ParameterName.IsNone())
+		{
+			continue;
+		}
+
+		float Value = (Param.Source == ERPGCameraScalarSource::Constant)
+			? Param.ConstantValue
+			: ResolveScalarSource(Param.Source);
+
+		if (Param.bSquareValue)
+		{
+			Value *= Value;
+		}
+
+		if (!Instance->SetScalarParameterValue(Param.ParameterName, Value) && !WarnedParameterNames.Contains(Param.ParameterName))
+		{
+			WarnedParameterNames.Add(Param.ParameterName);
+			UE_LOG(LogRPGCamera, Warning, TEXT("Scalar parameter '%s' not found in collection '%s'."),
+				*Param.ParameterName.ToString(), *ParameterCollection->GetName());
+		}
+	}
 }
 
 bool UOcclusionFadeComponent::GetCameraLocation(FVector& OutLocation) const
