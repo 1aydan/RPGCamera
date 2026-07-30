@@ -77,9 +77,6 @@ void URPGCameraComponent::BeginPlay()
 	bHasInitializedFocus = true;
 
 	SetWorldLocationAndRotation(CurrentFocus, FRotator(CurrentPitch, CurrentYaw, 0.f));
-
-	// Seed the collection so the first rendered frame isn't using stale defaults.
-	UpdateMaterialParameters();
 }
 
 #if WITH_EDITOR
@@ -117,9 +114,6 @@ void URPGCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	UpdateFocus(DeltaTime);
 
 	SetWorldLocationAndRotation(CurrentFocus, FRotator(CurrentPitch, CurrentYaw, 0.f));
-
-	// After the transform lands, so materials read this frame's camera position.
-	UpdateMaterialParameters();
 
 	// Consume this frame's buffered input.
 	PendingPanInput = FVector2D::ZeroVector;
@@ -712,149 +706,6 @@ FVector URPGCameraComponent::GetTargetLocation() const
 	}
 
 	return CurrentFocus;
-}
-
-FVector URPGCameraComponent::ResolveVectorSource(ERPGCameraVectorSource Source) const
-{
-	const FVector CameraLoc = GetCameraLocation();
-	const FVector TargetLoc = GetTargetLocation();
-
-	switch (Source)
-	{
-	case ERPGCameraVectorSource::CameraToTarget:
-		return TargetLoc - CameraLoc;
-
-	case ERPGCameraVectorSource::CameraToTargetNormalized:
-		return (TargetLoc - CameraLoc).GetSafeNormal();
-
-	case ERPGCameraVectorSource::CameraToTargetXY:
-		return FVector(TargetLoc.X - CameraLoc.X, TargetLoc.Y - CameraLoc.Y, 0.f);
-
-	case ERPGCameraVectorSource::CameraToTargetXYNormalized:
-		return FVector(TargetLoc.X - CameraLoc.X, TargetLoc.Y - CameraLoc.Y, 0.f).GetSafeNormal();
-
-	case ERPGCameraVectorSource::TargetToCamera:
-		return CameraLoc - TargetLoc;
-
-	case ERPGCameraVectorSource::TargetToCameraNormalized:
-		return (CameraLoc - TargetLoc).GetSafeNormal();
-
-	case ERPGCameraVectorSource::CameraLocation:
-		return CameraLoc;
-
-	case ERPGCameraVectorSource::TargetLocation:
-		return TargetLoc;
-
-	case ERPGCameraVectorSource::FocusLocation:
-		return CurrentFocus;
-
-	case ERPGCameraVectorSource::CameraForward:
-		return FRotationMatrix(FRotator(CurrentPitch, CurrentYaw, 0.f)).GetUnitAxis(EAxis::X);
-
-	case ERPGCameraVectorSource::Constant:
-	default:
-		return FVector::ZeroVector;
-	}
-}
-
-float URPGCameraComponent::ResolveScalarSource(ERPGCameraScalarSource Source) const
-{
-	switch (Source)
-	{
-	case ERPGCameraScalarSource::ArmLength:
-		return TargetArmLength;
-
-	case ERPGCameraScalarSource::NormalizedZoom:
-		return GetNormalizedZoom();
-
-	case ERPGCameraScalarSource::DistanceToTarget:
-		return FVector::Dist(GetCameraLocation(), GetTargetLocation());
-
-	case ERPGCameraScalarSource::HorizontalDistanceToTarget:
-		return FVector::Dist2D(GetCameraLocation(), GetTargetLocation());
-
-	case ERPGCameraScalarSource::TargetZ:
-		return GetTargetLocation().Z;
-
-	case ERPGCameraScalarSource::CameraZ:
-		return GetCameraLocation().Z;
-
-	case ERPGCameraScalarSource::Pitch:
-		return CurrentPitch;
-
-	case ERPGCameraScalarSource::Yaw:
-		return CurrentYaw;
-
-	case ERPGCameraScalarSource::FieldOfView:
-		return CurrentFOV;
-
-	case ERPGCameraScalarSource::Constant:
-	default:
-		return 0.f;
-	}
-}
-
-void URPGCameraComponent::UpdateMaterialParameters()
-{
-	if (!ParameterCollection || (VectorParameters.IsEmpty() && ScalarParameters.IsEmpty()))
-	{
-		return;
-	}
-
-	const UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
-
-	UMaterialParameterCollectionInstance* Instance = World->GetParameterCollectionInstance(ParameterCollection);
-	if (!Instance)
-	{
-		return;
-	}
-
-	for (const FRPGCameraVectorParameter& Param : VectorParameters)
-	{
-		if (Param.ParameterName.IsNone())
-		{
-			continue;
-		}
-
-		const FLinearColor Value = (Param.Source == ERPGCameraVectorSource::Constant)
-			? Param.ConstantValue
-			: FLinearColor(ResolveVectorSource(Param.Source));
-
-		if (!Instance->SetVectorParameterValue(Param.ParameterName, Value) && !WarnedParameterNames.Contains(Param.ParameterName))
-		{
-			WarnedParameterNames.Add(Param.ParameterName);
-			UE_LOG(LogRPGCamera, Warning, TEXT("Vector parameter '%s' not found in collection '%s'."),
-				*Param.ParameterName.ToString(), *ParameterCollection->GetName());
-		}
-	}
-
-	for (const FRPGCameraScalarParameter& Param : ScalarParameters)
-	{
-		if (Param.ParameterName.IsNone())
-		{
-			continue;
-		}
-
-		float Value = (Param.Source == ERPGCameraScalarSource::Constant)
-			? Param.ConstantValue
-			: ResolveScalarSource(Param.Source);
-
-		if (Param.bSquareValue)
-		{
-			Value *= Value;
-		}
-
-		if (!Instance->SetScalarParameterValue(Param.ParameterName, Value) && !WarnedParameterNames.Contains(Param.ParameterName))
-		{
-			WarnedParameterNames.Add(Param.ParameterName);
-			UE_LOG(LogRPGCamera, Warning, TEXT("Scalar parameter '%s' not found in collection '%s'."),
-				*Param.ParameterName.ToString(), *ParameterCollection->GetName());
-		}
-	}
 }
 
 FVector URPGCameraComponent::GetPlanarRight() const
