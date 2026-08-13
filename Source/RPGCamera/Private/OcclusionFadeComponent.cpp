@@ -11,6 +11,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "OcclusionFadeGroup.h"
+#include "OcclusionSubsystem.h"
 #include "RPGCameraModule.h"
 
 UOcclusionFadeComponent::UOcclusionFadeComponent()
@@ -140,7 +142,11 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 		Pair.Value.bOccluding = false;
 	}
 
-	TSet<TWeakObjectPtr<AActor>> CurrentOccluders;
+	// The primitives the sweep touched directly, and the actors owning them.
+	// A set, because a group can add hundreds of members and overlapping
+	// groups would otherwise re-add the same mesh.
+	TSet<UPrimitiveComponent*> Blockers;
+	TArray<AActor*> SeedActors;
 
 	for (const FHitResult& Hit : Hits)
 	{
@@ -150,21 +156,88 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 			continue;
 		}
 
-		FRPGFadeState& State = FadeStates.FindOrAdd(Primitive);
-		const bool bIsNew = !State.bCachedOriginals;
+		Blockers.Add(Primitive);
 
-		if (bIsNew)
+		if (AActor* HitActor = Hit.GetActor())
 		{
+			SeedActors.AddUnique(HitActor);
+		}
+	}
+
+	// Pull in the rest of every group a blocker belongs to, so the whole
+	// building goes translucent rather than just the wall in the way.
+	UOcclusionSubsystem* Registry = bUseOcclusionGroups ? GetOcclusionSubsystem() : nullptr;
+	TSet<TWeakObjectPtr<AOcclusionFadeGroup>> CurrentGroups;
+
+	if (Registry)
+	{
+		TArray<AOcclusionFadeGroup*> ActorGroups;
+
+		for (AActor* Seed : SeedActors)
+		{
+			ActorGroups.Reset();
+			Registry->GetGroupsForActor(Seed, ActorGroups);
+
+			for (AOcclusionFadeGroup* Group : ActorGroups)
+			{
+				bool bAlreadyTriggered = false;
+				CurrentGroups.Add(Group, &bAlreadyTriggered);
+
+				if (!bAlreadyTriggered)
+				{
+					Group->AppendMemberPrimitives(Blockers);
+				}
+			}
+		}
+	}
+
+	TSet<TWeakObjectPtr<AActor>> CurrentOccluders;
+
+	for (UPrimitiveComponent* Primitive : Blockers)
+	{
+		// Group members never went through the sweep, so they still need the
+		// filters applied; re-testing a direct blocker is cheap and harmless.
+		if (!ShouldFadePrimitive(Primitive))
+		{
+			continue;
+		}
+
+		FRPGFadeState& State = FadeStates.FindOrAdd(Primitive);
+
+		if (!State.bCachedOriginals)
+		{
+			// Resolve the group before caching: it decides which method the
+			// originals have to be captured for.
+			State.Group = Registry ? Registry->FindSettingsGroup(Primitive->GetOwner()) : nullptr;
 			CacheOriginals(Primitive, State);
 		}
 
 		State.bOccluding = true;
 
-		if (AActor* HitActor = Hit.GetActor())
+		if (AActor* Owner = Primitive->GetOwner())
 		{
-			CurrentOccluders.Add(HitActor);
+			CurrentOccluders.Add(Owner);
 		}
 	}
+
+	// Fire begin/end events at group granularity.
+	for (const TWeakObjectPtr<AOcclusionFadeGroup>& Group : CurrentGroups)
+	{
+		if (!PreviousOccludingGroups.Contains(Group) && Group.IsValid())
+		{
+			Group->NotifyOccluding(true);
+		}
+	}
+
+	for (const TWeakObjectPtr<AOcclusionFadeGroup>& Group : PreviousOccludingGroups)
+	{
+		if (!CurrentGroups.Contains(Group) && Group.IsValid())
+		{
+			Group->NotifyOccluding(false);
+		}
+	}
+
+	PreviousOccludingGroups = MoveTemp(CurrentGroups);
 
 	// Fire begin/end events at actor granularity.
 	for (const TWeakObjectPtr<AActor>& Actor : CurrentOccluders)
@@ -305,14 +378,16 @@ void UOcclusionFadeComponent::UpdateFadeAlphas(float DeltaTime)
 			continue;
 		}
 
+		const FRPGFadeSettings Settings = ResolveFadeSettings(State);
+
 		const bool bWantsFade = State.bOccluding && bFadeEnabled;
-		const float GoalAlpha = bWantsFade ? FadedAlpha : 1.f;
-		const float Speed = bWantsFade ? FadeOutSpeed : FadeInSpeed;
+		const float GoalAlpha = bWantsFade ? Settings.FadedAlpha : 1.f;
+		const float Speed = bWantsFade ? Settings.FadeOutSpeed : Settings.FadeInSpeed;
 
 		if (!FMath::IsNearlyEqual(State.Alpha, GoalAlpha, 0.001f))
 		{
 			State.Alpha = FMath::FInterpConstantTo(State.Alpha, GoalAlpha, DeltaTime, Speed);
-			ApplyFade(Primitive, State);
+			ApplyFade(Primitive, State, Settings);
 
 			if (const AActor* Actor = Primitive->GetOwner())
 			{
@@ -344,23 +419,31 @@ void UOcclusionFadeComponent::CacheOriginals(UPrimitiveComponent* Primitive, FRP
 		return;
 	}
 
+	const FRPGFadeSettings Settings = ResolveFadeSettings(State);
+
 	State.bOriginalVisibility = Primitive->IsVisible();
 	State.bOriginalCastHiddenShadow = Primitive->bCastHiddenShadow;
 	State.Alpha = 1.f;
 	State.bCachedOriginals = true;
 
-	if (FadeMethod == ERPGFadeMethod::CustomPrimitiveData)
+	// Lock in what we're about to write to, so restore can undo exactly this
+	// even if the settings change while the fade is in flight.
+	State.AppliedMethod = Settings.FadeMethod;
+	State.AppliedCustomPrimitiveDataIndex = Settings.CustomPrimitiveDataIndex;
+	State.AppliedFadeParameterName = Settings.FadeParameterName;
+
+	if (Settings.FadeMethod == ERPGFadeMethod::CustomPrimitiveData)
 	{
 		// An unset slot reads 0 in the shader, but the documented setup is a
 		// default of 1 (opaque), so treat "unset" as 1 rather than restoring
 		// to invisible.
 		const TArray<float>& Data = Primitive->GetCustomPrimitiveData().Data;
-		State.OriginalCustomPrimitiveData = Data.IsValidIndex(CustomPrimitiveDataIndex)
-			? Data[CustomPrimitiveDataIndex]
+		State.OriginalCustomPrimitiveData = Data.IsValidIndex(Settings.CustomPrimitiveDataIndex)
+			? Data[Settings.CustomPrimitiveDataIndex]
 			: 1.f;
 	}
 
-	if (FadeMethod == ERPGFadeMethod::MaterialParameter)
+	if (Settings.FadeMethod == ERPGFadeMethod::MaterialParameter)
 	{
 		const int32 NumMaterials = Primitive->GetNumMaterials();
 		State.DynamicMaterials.Reserve(NumMaterials);
@@ -375,17 +458,17 @@ void UOcclusionFadeComponent::CacheOriginals(UPrimitiveComponent* Primitive, FRP
 	}
 }
 
-void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FRPGFadeState& State)
+void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FRPGFadeState& State, const FRPGFadeSettings& Settings)
 {
 	if (!IsValid(Primitive))
 	{
 		return;
 	}
 
-	switch (FadeMethod)
+	switch (State.AppliedMethod)
 	{
 	case ERPGFadeMethod::CustomPrimitiveData:
-		Primitive->SetCustomPrimitiveDataFloat(CustomPrimitiveDataIndex, State.Alpha);
+		Primitive->SetCustomPrimitiveDataFloat(State.AppliedCustomPrimitiveDataIndex, State.Alpha);
 		break;
 
 	case ERPGFadeMethod::MaterialParameter:
@@ -393,7 +476,7 @@ void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FRPGFade
 		{
 			if (IsValid(MID))
 			{
-				MID->SetScalarParameterValue(FadeParameterName, State.Alpha);
+				MID->SetScalarParameterValue(State.AppliedFadeParameterName, State.Alpha);
 			}
 		}
 		break;
@@ -404,7 +487,7 @@ void UOcclusionFadeComponent::ApplyFade(UPrimitiveComponent* Primitive, FRPGFade
 		const bool bShouldBeVisible = State.Alpha > 0.5f;
 		if (Primitive->IsVisible() != bShouldBeVisible)
 		{
-			if (bKeepShadowsWhenHidden)
+			if (Settings.bKeepShadowsWhenHidden)
 			{
 				Primitive->bCastHiddenShadow = !bShouldBeVisible ? true : State.bOriginalCastHiddenShadow;
 				Primitive->MarkRenderStateDirty();
@@ -428,10 +511,10 @@ void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, F
 		return;
 	}
 
-	switch (FadeMethod)
+	switch (State.AppliedMethod)
 	{
 	case ERPGFadeMethod::CustomPrimitiveData:
-		Primitive->SetCustomPrimitiveDataFloat(CustomPrimitiveDataIndex, State.OriginalCustomPrimitiveData);
+		Primitive->SetCustomPrimitiveDataFloat(State.AppliedCustomPrimitiveDataIndex, State.OriginalCustomPrimitiveData);
 		break;
 
 	case ERPGFadeMethod::MaterialParameter:
@@ -439,7 +522,7 @@ void UOcclusionFadeComponent::RestorePrimitive(UPrimitiveComponent* Primitive, F
 		{
 			if (IsValid(MID))
 			{
-				MID->SetScalarParameterValue(FadeParameterName, 1.f);
+				MID->SetScalarParameterValue(State.AppliedFadeParameterName, 1.f);
 			}
 		}
 		break;
@@ -468,8 +551,54 @@ void UOcclusionFadeComponent::ClearAllFades()
 		}
 	}
 
+	// Let groups fire their stop event rather than leaving them latched on.
+	for (const TWeakObjectPtr<AOcclusionFadeGroup>& Group : PreviousOccludingGroups)
+	{
+		if (Group.IsValid())
+		{
+			Group->NotifyOccluding(false);
+		}
+	}
+
 	FadeStates.Empty();
 	PreviousOccluders.Empty();
+	PreviousOccludingGroups.Empty();
+}
+
+// ---------------------------------------------------------------------------
+// Settings resolution
+// ---------------------------------------------------------------------------
+
+FRPGFadeSettings UOcclusionFadeComponent::GetDefaultFadeSettings() const
+{
+	FRPGFadeSettings Settings;
+	Settings.FadeMethod = FadeMethod;
+	Settings.FadedAlpha = FadedAlpha;
+	Settings.FadeOutSpeed = FadeOutSpeed;
+	Settings.FadeInSpeed = FadeInSpeed;
+	Settings.CustomPrimitiveDataIndex = CustomPrimitiveDataIndex;
+	Settings.FadeParameterName = FadeParameterName;
+	Settings.bKeepShadowsWhenHidden = bKeepShadowsWhenHidden;
+	return Settings;
+}
+
+FRPGFadeSettings UOcclusionFadeComponent::ResolveFadeSettings(const FRPGFadeState& State) const
+{
+	if (const AOcclusionFadeGroup* Group = State.Group.Get())
+	{
+		if (Group->bOverrideFadeSettings)
+		{
+			return Group->FadeSettings;
+		}
+	}
+
+	return GetDefaultFadeSettings();
+}
+
+UOcclusionSubsystem* UOcclusionFadeComponent::GetOcclusionSubsystem() const
+{
+	const UWorld* World = GetWorld();
+	return World ? World->GetSubsystem<UOcclusionSubsystem>() : nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -490,6 +619,22 @@ TArray<AActor*> UOcclusionFadeComponent::GetOccludingActors() const
 		if (AActor* Actor = Pair.Key->GetOwner())
 		{
 			Result.AddUnique(Actor);
+		}
+	}
+
+	return Result;
+}
+
+TArray<AOcclusionFadeGroup*> UOcclusionFadeComponent::GetOccludingGroups() const
+{
+	TArray<AOcclusionFadeGroup*> Result;
+	Result.Reserve(PreviousOccludingGroups.Num());
+
+	for (const TWeakObjectPtr<AOcclusionFadeGroup>& Group : PreviousOccludingGroups)
+	{
+		if (AOcclusionFadeGroup* Resolved = Group.Get())
+		{
+			Result.Add(Resolved);
 		}
 	}
 

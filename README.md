@@ -3,13 +3,15 @@
 A modular top-down / ARPG camera toolkit for **Unreal Engine 5.8**. Core logic is C++, but
 everything is exposed to Blueprints — you never have to write C++ to use it.
 
-Three classes, all independent of each other:
-
 | Class | Type | Purpose |
 |---|---|---|
 | `URPGCameraComponent` | `USpringArmComponent` | Camera control: follow, pan, rotate, zoom, pitch, FOV, material parameters |
 | `ARPGCameraManager` | `APlayerCameraManager` | Single Blueprint entry point to the active camera |
 | `UOcclusionFadeComponent` | `UActorComponent` | Fades meshes that block the view of your character |
+| `AOcclusionFadeGroup` | `AVolume` | Makes everything inside it fade as one group |
+| `UOcclusionSubsystem` | `UWorldSubsystem` | Actor→group index the fade sweep queries. Automatic |
+
+The camera and the occlusion fade are independent of each other — use either, or both.
 
 ---
 
@@ -247,6 +249,50 @@ By default everything that blocks the trace fades. To narrow it down:
 - `Require Fadeable Interface` — strictest option, only fades actors implementing
   `IFadeableTarget`.
 
+### Occlusion fade groups
+
+By default each mesh fades on its own, so a sweep into a building punches a hole through
+whichever wall happens to be in the way while the roof and the rest of the walls stay solid.
+An **Occlusion Fade Group** volume fixes that: drop one over the building and when the sweep
+hits any single member, every member fades together.
+
+1. Place an **Occlusion Fade Group** actor from the Place Actors panel and shape the brush
+   around the geometry you want treated as one object.
+2. Press **Refresh Members** in the details panel to see the `Member Count` it resolves to.
+3. Play. Anything inside now fades and returns as a unit.
+
+Membership is *volume overlap + `Additional Members` − `Excluded Actors`*:
+
+- `Capture Overlapping Actors` — on by default. Turn it off to use the volume purely as a
+  hand-picked list.
+- `Capture Actor Tags` / `Capture Actor Classes` — narrow what the volume swallows, so props
+  and NPCs inside a room don't join the building group.
+- `Capture Tolerance` — how far outside the brush a mesh may sit and still count (default
+  50cm). Covers eaves and trim that poke through the wall you drew.
+- `Additional Members` — actors that live outside the volume entirely, e.g. a detached
+  balcony.
+- `Excluded Actors` — the floor, or anything else the volume would otherwise swallow.
+
+An actor is matched by its own origin *or* by any of its mesh components' bounds centres, so
+modular pieces whose pivot sits at a corner or on the floor below still get picked up.
+
+Membership resolves once on **Begin Play**. Call `Refresh Members` after spawning or
+streaming in geometry that should join, or `Add Member` / `Remove Member` for one-offs. An
+actor may belong to more than one group; all of them fade.
+
+**Per-group appearance.** Turn on `Override Fade Settings` and the group's own `Fade Settings`
+replace the fade component's for its members — method, faded alpha, and both speeds. A roof
+group can hard-hide with **Hide Component** while a tree group ghosts at 0.2, all driven by
+one fade component on the character.
+
+**Events.** The group actor exposes `On Group Began Occluding` and `On Group Stopped
+Occluding`, plus an `Is Occluding` getter — handy for swapping an interior lighting setup or
+enabling a minimap overlay when the player walks behind a building.
+
+The fade component's `Use Occlusion Groups` toggle turns the whole mechanism off if you want
+the old per-mesh behaviour. The component's filters still apply to group members, so an actor
+tagged in `Ignored Actor Tags` stays solid even inside a group.
+
 ### The IFadeableTarget interface
 
 Optional. Implement it on an actor to get:
@@ -264,6 +310,11 @@ interpolate every frame, so it stays smooth. Raise it to 0.1 on dense scenes. De
 repeated past each blocking wall (capped at 8 passes) on blocking channels like Visibility so
 stacked occluders all fade. Cost scales with how much geometry sits between the camera and the
 character, not with world size.
+
+Groups add a hash lookup per hit actor and then walk the triggered group's members, so cost
+scales with group size, not group count — the actor→group index is built once at `Begin Play`.
+The one expensive moment is `Refresh Members`, which iterates every actor in the world; that's
+fine on Begin Play or on a level-streaming callback, not every frame.
 
 ---
 

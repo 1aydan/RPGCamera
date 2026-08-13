@@ -8,9 +8,11 @@
 #include "RPGCameraTypes.h"
 #include "OcclusionFadeComponent.generated.h"
 
+class AOcclusionFadeGroup;
 class APlayerController;
 class UCameraComponent;
 class UMaterialInstanceDynamic;
+class UOcclusionSubsystem;
 class UPrimitiveComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRPGOcclusionActorChanged, AActor*, Actor);
@@ -28,6 +30,23 @@ struct FRPGFadeState
 	/** True while this primitive is still blocking the view. */
 	UPROPERTY()
 	bool bOccluding = false;
+
+	/** Group this primitive fades with, if any. Supplies setting overrides. */
+	UPROPERTY()
+	TWeakObjectPtr<AOcclusionFadeGroup> Group;
+
+	/**
+	 * Method in force when the originals were cached. Restore always undoes
+	 * what apply did, even if the group's override is toggled mid-fade.
+	 */
+	UPROPERTY()
+	ERPGFadeMethod AppliedMethod = ERPGFadeMethod::CustomPrimitiveData;
+
+	UPROPERTY()
+	int32 AppliedCustomPrimitiveDataIndex = 0;
+
+	UPROPERTY()
+	FName AppliedFadeParameterName;
 
 	/** Cached dynamic materials, only created for the MaterialParameter method. */
 	UPROPERTY()
@@ -107,6 +126,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade", meta = (AdvancedDisplay))
 	bool bTraceComplex = false;
 
+	/**
+	 * Expand each hit through any AOcclusionFadeGroup volume it belongs to, so
+	 * a whole building fades as one instead of the sweep carving a hole in it.
+	 * Off = every mesh fades on its own, as before.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade")
+	bool bUseOcclusionGroups = true;
+
 	// ---------------------------------------------------------------------
 	// Filtering
 	// ---------------------------------------------------------------------
@@ -141,6 +168,10 @@ public:
 
 	// ---------------------------------------------------------------------
 	// Appearance
+	//
+	// These are the defaults. A primitive that belongs to an
+	// AOcclusionFadeGroup with bOverrideFadeSettings on uses the group's
+	// FadeSettings instead.
 	// ---------------------------------------------------------------------
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Fade|Appearance")
@@ -180,9 +211,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Occlusion Fade|Events")
 	FRPGOcclusionActorChanged OnActorStoppedOccluding;
 
-	/** Every actor currently blocking the view. */
+	/** Every actor currently faded, including members pulled in by a group. */
 	UFUNCTION(BlueprintPure, Category = "Occlusion Fade")
 	TArray<AActor*> GetOccludingActors() const;
+
+	/** Every group with at least one member blocking the view. */
+	UFUNCTION(BlueprintPure, Category = "Occlusion Fade")
+	TArray<AOcclusionFadeGroup*> GetOccludingGroups() const;
 
 	/** Restore everything to full opacity immediately and clear tracking. */
 	UFUNCTION(BlueprintCallable, Category = "Occlusion Fade")
@@ -208,11 +243,22 @@ protected:
 	/** Actors that were occluding as of the last sweep, for change events. */
 	TSet<TWeakObjectPtr<AActor>> PreviousOccluders;
 
+	/** Groups that were occluding as of the last sweep, for change events. */
+	TSet<TWeakObjectPtr<AOcclusionFadeGroup>> PreviousOccludingGroups;
+
 	void PerformOcclusionTrace();
 	void UpdateFadeAlphas(float DeltaTime);
 
+	/** This component's own appearance properties, bundled. */
+	FRPGFadeSettings GetDefaultFadeSettings() const;
+
+	/** The settings that actually drive State: the group's override, or ours. */
+	FRPGFadeSettings ResolveFadeSettings(const FRPGFadeState& State) const;
+
+	UOcclusionSubsystem* GetOcclusionSubsystem() const;
+
 	bool ShouldFadePrimitive(const UPrimitiveComponent* Primitive) const;
-	void ApplyFade(UPrimitiveComponent* Primitive, FRPGFadeState& State);
+	void ApplyFade(UPrimitiveComponent* Primitive, FRPGFadeState& State, const FRPGFadeSettings& Settings);
 	void CacheOriginals(UPrimitiveComponent* Primitive, FRPGFadeState& State);
 	void RestorePrimitive(UPrimitiveComponent* Primitive, FRPGFadeState& State);
 
