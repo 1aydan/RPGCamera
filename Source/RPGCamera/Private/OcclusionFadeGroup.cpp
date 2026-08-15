@@ -140,6 +140,25 @@ bool AOcclusionFadeGroup::PassesCaptureFilters(const AActor* Actor) const
 	return true;
 }
 
+bool AOcclusionFadeGroup::IsRenderableCandidate(const UPrimitiveComponent* Primitive)
+{
+	if (!Primitive || !Primitive->IsRegistered())
+	{
+		return false;
+	}
+
+	// IsVisualizationComponent() only exists behind WITH_EDITORONLY_DATA, and
+	// visualization components are stripped from cooked builds anyway.
+#if WITH_EDITORONLY_DATA
+	if (Primitive->IsVisualizationComponent())
+	{
+		return false;
+	}
+#endif
+
+	return true;
+}
+
 bool AOcclusionFadeGroup::IsActorInsideVolume(const AActor* Actor) const
 {
 	if (EncompassesPoint(Actor->GetActorLocation(), CaptureTolerance))
@@ -152,7 +171,7 @@ bool AOcclusionFadeGroup::IsActorInsideVolume(const AActor* Actor) const
 	for (const UActorComponent* Component : Actor->GetComponents())
 	{
 		const UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component);
-		if (!Primitive || !Primitive->IsRegistered() || Primitive->IsVisualizationComponent())
+		if (!IsRenderableCandidate(Primitive))
 		{
 			continue;
 		}
@@ -247,7 +266,7 @@ void AOcclusionFadeGroup::AppendMemberPrimitives(TSet<UPrimitiveComponent*>& Out
 		for (UActorComponent* Component : Actor->GetComponents())
 		{
 			UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component);
-			if (!Primitive || !Primitive->IsRegistered() || Primitive->IsVisualizationComponent())
+			if (!IsRenderableCandidate(Primitive))
 			{
 				continue;
 			}

@@ -153,4 +153,7 @@ protected:
 
 	/** True if any part of Actor sits inside the volume, within CaptureTolerance. */
 	bool IsActorInsideVolume(const AActor* Actor) const;
+
+	/** True if Primitive is live geometry rather than an editor gizmo. */
+	static bool IsRenderableCandidate(const UPrimitiveComponent* Primitive);
 };
