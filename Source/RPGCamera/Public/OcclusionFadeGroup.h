@@ -16,8 +16,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRPGOcclusionGroupChanged, AOcclusio
  * A volume that makes everything inside it fade as one.
  *
  * Drop one over a building, a room, or a cluster of trees. When the occlusion
- * sweep hits any single member, every member of the group fades together -
- * so a roof, its walls and its chimney disappear as one object instead of the
+ * sweep crosses the volume or hits a member, every member fades together - so
+ * a roof, its walls and its chimney disappear as one object instead of the
  * sweep carving a hole through whichever piece happened to be in the way.
  *
  * Membership is the volume's overlap plus AdditionalMembers, minus
@@ -45,6 +45,10 @@ public:
 	/** Turn the group off without deleting it. Members then fade individually. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Group")
 	bool bGroupEnabled = true;
+
+	/** Fade the group when the sweep crosses the volume itself, not only when it hits a member. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Group")
+	bool bVolumeTriggersFade = true;
 
 	/** Take in every actor overlapping the volume. Off = AdditionalMembers only. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Occlusion Group|Membership")

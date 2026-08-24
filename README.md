@@ -254,12 +254,25 @@ By default everything that blocks the trace fades. To narrow it down:
 By default each mesh fades on its own, so a sweep into a building punches a hole through
 whichever wall happens to be in the way while the roof and the rest of the walls stay solid.
 An **Occlusion Fade Group** volume fixes that: drop one over the building and when the sweep
-hits any single member, every member fades together.
+crosses the volume - or hits any single member - every member fades together.
 
 1. Place an **Occlusion Fade Group** actor from the Place Actors panel and shape the brush
    around the geometry you want treated as one object.
 2. Press **Refresh Members** in the details panel to see the `Member Count` it resolves to.
 3. Play. Anything inside now fades and returns as a unit.
+
+**The volume is itself a trigger.** `Volume Triggers Fade` is on by default: the group fades
+whenever the sweep passes through the brush, whether or not it touches a member mesh. That
+covers the cases where the sweep slips through the building without hitting anything solid - a
+doorway, a gap between pillars, a window, or a wall on a channel it ignores - and it fires the
+group events at the volume boundary rather than at the first wall. Turn it off for the old
+behaviour, where only a hit on a member starts the fade.
+
+Two things follow from that. The sweep starts at the character, so *standing inside the volume
+counts as crossing it* and the group fades while you are indoors - usually what you want for a
+roof, so scope the brush to the part that should vanish. And the brush needs query collision to
+be seen: the actor sets that up itself (query-only, overlapping every channel), so don't switch
+the volume to `NoCollision`. The brush is never faded itself.
 
 Membership is *volume overlap + `Additional Members` − `Excluded Actors`*:
 
@@ -313,6 +326,7 @@ character, not with world size.
 
 Groups add a hash lookup per hit actor and then walk the triggered group's members, so cost
 scales with group size, not group count — the actor→group index is built once at `Begin Play`.
+Volume triggering is free: the brush already comes back as an overlap in the same sweep.
 The one expensive moment is `Refresh Members`, which iterates every actor in the world; that's
 fine on Begin Play or on a level-streaming callback, not every frame.
 

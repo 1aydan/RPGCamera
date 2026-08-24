@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 3,
-	"VersionName": "0.3.1",
+	"VersionName": "0.3.2",
 	"FriendlyName": "RPG Camera",
 	"Description": "Modular top-down / ARPG camera toolkit: flexible camera control, view-obstruction fading, and cursor hover tracking. C++ core, fully Blueprint exposed.",
 	"Category": "Camera",

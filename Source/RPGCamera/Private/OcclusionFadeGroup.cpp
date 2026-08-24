@@ -2,6 +2,7 @@
 
 #include "OcclusionFadeGroup.h"
 
+#include "Components/BrushComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -11,6 +12,14 @@
 AOcclusionFadeGroup::AOcclusionFadeGroup()
 {
 	PrimaryActorTick.bCanEverTick = false;
+
+	// The camera sweep has to see the brush for the volume to trigger the group.
+	UBrushComponent* VolumeBrush = GetBrushComponent();
+	if (VolumeBrush)
+	{
+		VolumeBrush->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		VolumeBrush->SetCollisionResponseToAllChannels(ECR_Overlap);
+	}
 
 #if WITH_EDITORONLY_DATA
 	bColored = true;
@@ -57,7 +66,9 @@ void AOcclusionFadeGroup::RefreshMembers()
 			for (TActorIterator<AActor> It(World); It; ++It)
 			{
 				AActor* Candidate = *It;
-				if (Candidate == this || !IsValid(Candidate))
+
+				// Group volumes are triggers, not geometry - never swallow one.
+				if (!IsValid(Candidate) || Candidate->IsA<AOcclusionFadeGroup>())
 				{
 					continue;
 				}

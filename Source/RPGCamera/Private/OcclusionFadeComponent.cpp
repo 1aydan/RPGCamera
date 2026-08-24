@@ -147,9 +147,23 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 	// groups would otherwise re-add the same mesh.
 	TSet<UPrimitiveComponent*> Blockers;
 	TArray<AActor*> SeedActors;
+	TArray<AOcclusionFadeGroup*> TriggeredGroups;
 
 	for (const FHitResult& Hit : Hits)
 	{
+		AActor* HitActor = Hit.GetActor();
+
+		// A group volume never renders, so crossing it only arms the group.
+		AOcclusionFadeGroup* VolumeGroup = Cast<AOcclusionFadeGroup>(HitActor);
+		if (VolumeGroup)
+		{
+			if (bUseOcclusionGroups && VolumeGroup->bGroupEnabled && VolumeGroup->bVolumeTriggersFade)
+			{
+				TriggeredGroups.AddUnique(VolumeGroup);
+			}
+			continue;
+		}
+
 		UPrimitiveComponent* Primitive = Hit.GetComponent();
 		if (!ShouldFadePrimitive(Primitive))
 		{
@@ -158,7 +172,7 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 
 		Blockers.Add(Primitive);
 
-		if (AActor* HitActor = Hit.GetActor())
+		if (HitActor)
 		{
 			SeedActors.AddUnique(HitActor);
 		}
@@ -180,14 +194,14 @@ void UOcclusionFadeComponent::PerformOcclusionTrace()
 
 			for (AOcclusionFadeGroup* Group : ActorGroups)
 			{
-				bool bAlreadyTriggered = false;
-				CurrentGroups.Add(Group, &bAlreadyTriggered);
-
-				if (!bAlreadyTriggered)
-				{
-					Group->AppendMemberPrimitives(Blockers);
-				}
+				TriggeredGroups.AddUnique(Group);
 			}
+		}
+
+		for (AOcclusionFadeGroup* Group : TriggeredGroups)
+		{
+			CurrentGroups.Add(Group);
+			Group->AppendMemberPrimitives(Blockers);
 		}
 	}
 
@@ -276,6 +290,12 @@ bool UOcclusionFadeComponent::ShouldFadePrimitive(const UPrimitiveComponent* Pri
 
 	const AActor* Actor = Primitive->GetOwner();
 	if (!IsValid(Actor) || Actor == ViewTarget.Get())
+	{
+		return false;
+	}
+
+	// Group volumes trigger a fade; they are never the thing that fades.
+	if (Actor->IsA<AOcclusionFadeGroup>())
 	{
 		return false;
 	}
